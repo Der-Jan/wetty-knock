@@ -28,7 +28,7 @@ async function keyEntries() {
 
 function openManager(): void {
   const dialog = document.createElement('dialog');
-  dialog.className = 'ssh-host-trust ssh-key-manager';
+  dialog.className = 'ssh-key-manager';
   const heading = document.createElement('h2');
   heading.id = 'ssh-key-manager-title';
   heading.textContent = 'SSH keys';
@@ -69,7 +69,7 @@ function openManager(): void {
       checkbox.type = 'checkbox';
       checkbox.checked = entry.sensitive === true;
       const label = document.createElement('label');
-      label.append(checkbox, ' Sensitive — approve every use');
+      label.append('Sensitive — approve every use', checkbox);
       checkbox.onchange = () => {
         list.disabled = true;
         void entry
@@ -126,14 +126,33 @@ function openManager(): void {
       );
     }
   }
-  dialog.append(
+  const header = document.createElement('header');
+  header.append(
     heading,
-    list,
-    status,
     action('Close', () => {
       dialog.close();
     }),
   );
+  dialog.append(header, list, status);
+  dialog.setAttribute('closedby', 'any');
+  if (!('closedBy' in Object.getPrototypeOf(dialog))) {
+    // Older browsers send backdrop pointer events to the dialog itself.
+    const outside = (event: PointerEvent): boolean => {
+      const { left, top, right, bottom } = dialog.getBoundingClientRect();
+      return (
+        event.target === dialog &&
+        (event.clientX < left || event.clientX >= right || event.clientY < top || event.clientY >= bottom)
+      );
+    };
+    let startedOutside = false;
+    dialog.addEventListener('pointerdown', (event) => {
+      startedOutside = outside(event);
+    });
+    dialog.addEventListener('pointerup', (event) => {
+      if (startedOutside && outside(event)) dialog.close();
+      startedOutside = false;
+    });
+  }
   dialog.addEventListener(
     'close',
     () => {
