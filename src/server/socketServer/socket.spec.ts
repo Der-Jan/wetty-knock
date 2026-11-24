@@ -32,7 +32,7 @@ const probeHandshake = async ({
   secFetchSite,
   allowMissingOrigin = false,
 }: ProbeOptions): Promise<number> => {
-  const io = listen(express(), {
+  const io = await listen(express(), {
     host: '127.0.0.1',
     port: 0,
     path: '',
@@ -139,9 +139,7 @@ describe('Socket.IO origin validation', () => {
     };
 
     expect(await probeHandshake({ ...request, origin: 'null' })).to.equal(403);
-    expect(
-      await probeHandshake({ ...request, origin: 'https://evil.example' }),
-    ).to.equal(403);
+    expect(await probeHandshake({ ...request, origin: 'https://evil.example' })).to.equal(403);
   });
 
   it('rejects a foreign browser origin', async () => {
@@ -152,10 +150,7 @@ describe('Socket.IO origin validation', () => {
   it('rejects missing and null origins on both transports by default', async () => {
     const statuses = await Promise.all(
       (['polling', 'websocket'] as const).map((transport) =>
-        Promise.all([
-          probeHandshake({ transport }),
-          probeHandshake({ transport, origin: 'null' }),
-        ]),
+        Promise.all([probeHandshake({ transport }), probeHandshake({ transport, origin: 'null' })]),
       ),
     );
     expect(statuses).to.deep.equal([
@@ -165,9 +160,7 @@ describe('Socket.IO origin validation', () => {
   });
 
   it('accepts a request with no origin when allowMissingOrigin is true', async () => {
-    expect(
-      await probeHandshake({ transport: 'polling', allowMissingOrigin: true }),
-    ).to.equal(200);
+    expect(await probeHandshake({ transport: 'polling', allowMissingOrigin: true })).to.equal(200);
   });
 
   it('allowMissingOrigin does not bypass the null-origin rejection', async () => {
@@ -235,6 +228,33 @@ describe('Socket.IO origin validation', () => {
         transport: 'polling',
       }),
     ).to.equal(403);
+  });
+
+  it('rejects when the HTTP server cannot bind', async () => {
+    const occupied = http.createServer();
+    occupied.listen(0, '127.0.0.1');
+    await once(occupied, 'listening');
+    const { port } = occupied.address() as AddressInfo;
+
+    try {
+      let failure: unknown;
+      try {
+        await listen(express(), {
+          host: '127.0.0.1',
+          port,
+          path: '',
+          ssl: {},
+          allowedOrigins: ['http://terminal.example'],
+        });
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).to.be.instanceOf(Error);
+      expect((failure as NodeJS.ErrnoException).code).to.equal('EADDRINUSE');
+    } finally {
+      occupied.close();
+      await once(occupied, 'close');
+    }
   });
 
   it('requires a nonempty configured origin allowlist before listening', () => {
@@ -338,12 +358,8 @@ describe('Socket.IO origin validation', () => {
       secFetchSite: 'same-origin',
       allowedOrigins: ['https://terminal.example:8443'],
     };
-    expect(
-      await probeHandshake({ ...request, host: 'terminal.example:8443' }),
-    ).to.equal(200);
-    expect(
-      await probeHandshake({ ...request, host: 'terminal.example:8444' }),
-    ).to.equal(403);
+    expect(await probeHandshake({ ...request, host: 'terminal.example:8443' })).to.equal(200);
+    expect(await probeHandshake({ ...request, host: 'terminal.example:8444' })).to.equal(403);
   });
 
   it('accepts an explicitly configured origin', async () => {

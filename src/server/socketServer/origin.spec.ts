@@ -1,4 +1,3 @@
-import { once } from 'node:events';
 import { expect } from 'chai';
 import express from 'express';
 import 'mocha';
@@ -8,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 
 describe('Browser key handshake origin', () => {
   it('should require the configured origin on both Socket.IO transports', async () => {
-    const server = listen(express(), {
+    const server = await listen(express(), {
       host: '127.0.0.1',
       port: 0,
       path: '',
@@ -17,12 +16,8 @@ describe('Browser key handshake origin', () => {
       browserOrigin: 'https://terminal.example',
     });
     try {
-      await once(server.httpServer, 'listening');
       const address = server.httpServer.address() as AddressInfo;
-      const connected = async (
-        transport: string,
-        headers: Record<string, string>,
-      ): Promise<boolean> => {
+      const connected = async (transport: string, headers: Record<string, string>): Promise<boolean> => {
         const client = io(`http://127.0.0.1:${String(address.port)}`, {
           transports: [transport],
           extraHeaders: headers,
@@ -66,10 +61,9 @@ describe('Browser key handshake origin', () => {
           ];
           await Promise.all(
             cases.map(async ([headers, expected]) => {
-              expect(
-                await connected(transport, headers),
-                `${transport}: ${JSON.stringify(headers)}`,
-              ).to.equal(expected);
+              expect(await connected(transport, headers), `${transport}: ${JSON.stringify(headers)}`).to.equal(
+                expected,
+              );
             }),
           );
         }),

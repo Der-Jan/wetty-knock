@@ -1,24 +1,24 @@
 {
-  "ssh": {
-    "host": "localhost",
-    "auth": "password",
+  ssh: {
+    host: 'localhost',
+    auth: 'password',
     // For browser-key authentication, see docs/browser-key-login.md.
-    // "browserOrigin": "https://terminal.example.com",
-    "port": 22,
-    "knownHosts": "/dev/null",
-    "allowRemoteHosts": false,
-    "allowRemoteCommand": false
+    // browserOrigin: 'https://terminal.example.com',
+    port: 22,
+    knownHosts: '/dev/null',
+    allowRemoteHosts: false,
+    allowRemoteCommand: false,
   },
-  "server": {
-    "base": "/",
-    "port": 3000,
-    "host": "0.0.0.0",
-    "title": "WeTTY - The Web Terminal Emulator",
-    "allowIframe": false,
-    "pingInterval": 3000,
-    "pingTimeout": 7000,
-    "allowedOrigins": ["http://localhost:3000"]
+  server: {
+    base: '/',
+    port: 3000,
+    host: '0.0.0.0',
+    title: 'WeTTY - The Web Terminal Emulator',
+    allowIframe: false,
+    pingInterval: 3000,
+    pingTimeout: 7000,
+    allowedOrigins: ['http://localhost:3000'],
   },
-  "forceSSH": false,
-  "command": "login"
+  forceSSH: false,
+  command: 'login',
 }

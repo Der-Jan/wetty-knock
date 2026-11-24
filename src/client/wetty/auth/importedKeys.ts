@@ -1,12 +1,12 @@
-import { fields } from '../../../shared/browserAgent';
+import { fields } from '../../../protocol/browserAgent';
 import {
   MAX_IMPORTED_KEYS,
   base64url,
   importedIdentity,
   publicIdentity,
   webAlgorithm,
-} from '../../../shared/importedKeys';
-import type { SigningAlgorithm } from '../../../shared/importedKeys';
+} from '../../../protocol/importedKeys';
+import type { SigningAlgorithm } from '../../../protocol/importedKeys';
 
 export interface ImportedKey {
   blob: Uint8Array;
@@ -39,39 +39,24 @@ async function database(): Promise<IDBDatabase> {
 }
 function validate(value: unknown): ImportedKey {
   const record = fields(value);
-  if (
-    !(record.blob instanceof Uint8Array) ||
-    typeof record.comment !== 'string' ||
-    record.comment.length > 256
-  ) {
+  if (!(record.blob instanceof Uint8Array) || typeof record.comment !== 'string' || record.comment.length > 256) {
     throw new Error('Invalid imported key record');
   }
   const { rsa } = publicIdentity(record.blob);
   const keys = fields(record.keys);
-  const algorithms: SigningAlgorithm[] = rsa
-    ? ['rsa-sha2-256', 'rsa-sha2-512']
-    : ['ssh-ed25519'];
+  const algorithms: SigningAlgorithm[] = rsa ? ['rsa-sha2-256', 'rsa-sha2-512'] : ['ssh-ed25519'];
   for (const algorithm of algorithms) {
     const key = keys[algorithm];
-    if (
-      !(key instanceof CryptoKey) ||
-      key.type !== 'private' ||
-      key.extractable ||
-      key.usages.join(',') !== 'sign'
-    ) {
+    if (!(key instanceof CryptoKey) || key.type !== 'private' || key.extractable || key.usages.join(',') !== 'sign') {
       throw new Error('Invalid imported private key');
     }
     const expected = webAlgorithm(algorithm);
-    if (
-      key.algorithm.name !==
-      (typeof expected === 'string' ? expected : expected.name)
-    ) {
+    if (key.algorithm.name !== (typeof expected === 'string' ? expected : expected.name)) {
       throw new Error('Invalid key algorithm');
     }
     if (
       rsa &&
-      (key.algorithm as RsaHashedKeyAlgorithm).hash.name !==
-        (algorithm === 'rsa-sha2-256' ? 'SHA-256' : 'SHA-512')
+      (key.algorithm as RsaHashedKeyAlgorithm).hash.name !== (algorithm === 'rsa-sha2-256' ? 'SHA-256' : 'SHA-512')
     ) {
       throw new Error('Invalid key hash');
     }
@@ -99,9 +84,7 @@ export async function listImportedKeys(): Promise<ImportedKey[]> {
           }
           resolve(values.map(validate));
         } catch (error) {
-          reject(
-            error instanceof Error ? error : new Error('Invalid imported key'),
-          );
+          reject(error instanceof Error ? error : new Error('Invalid imported key'));
         }
       };
     });
@@ -109,27 +92,16 @@ export async function listImportedKeys(): Promise<ImportedKey[]> {
     db.close();
   }
 }
-export async function prepareImportedKey(
-  packet: Uint8Array,
-): Promise<ImportedKey> {
+export async function prepareImportedKey(packet: Uint8Array): Promise<ImportedKey> {
   const { blob, comment, jwk } = importedIdentity(packet);
-  const algorithms: SigningAlgorithm[] =
-    jwk.kty === 'RSA' ? ['rsa-sha2-256', 'rsa-sha2-512'] : ['ssh-ed25519'];
+  const algorithms: SigningAlgorithm[] = jwk.kty === 'RSA' ? ['rsa-sha2-256', 'rsa-sha2-512'] : ['ssh-ed25519'];
   const keys: ImportedKey['keys'] = {};
   await Promise.all(
     algorithms.map(async (algorithm) => {
       const params = webAlgorithm(algorithm);
       // Import independent non-extractable handles for each RSA hash.
-      const key = await crypto.subtle.importKey('jwk', jwk, params, false, [
-        'sign',
-      ]);
-      const pub = await crypto.subtle.importKey(
-        'jwk',
-        publicIdentity(blob).jwk,
-        params,
-        true,
-        ['verify'],
-      );
+      const key = await crypto.subtle.importKey('jwk', jwk, params, false, ['sign']);
+      const pub = await crypto.subtle.importKey('jwk', publicIdentity(blob).jwk, params, true, ['verify']);
       const challenge = crypto.getRandomValues(new Uint8Array(32));
       const signature = await crypto.subtle.sign(params, key, challenge);
       if (!(await crypto.subtle.verify(params, pub, signature, challenge))) {
@@ -140,10 +112,7 @@ export async function prepareImportedKey(
   );
   return { blob, comment, keys };
 }
-export async function saveImportedKey(
-  key: ImportedKey,
-  signal: AbortSignal,
-): Promise<void> {
+export async function saveImportedKey(key: ImportedKey, signal: AbortSignal): Promise<void> {
   signal.throwIfAborted();
   const db = await database();
   try {
@@ -158,10 +127,7 @@ export async function saveImportedKey(
       const request = store.getAllKeys();
       request.onsuccess = () => {
         const id = base64url(key.blob);
-        if (
-          request.result.length >= MAX_IMPORTED_KEYS &&
-          !request.result.includes(id)
-        ) {
+        if (request.result.length >= MAX_IMPORTED_KEYS && !request.result.includes(id)) {
           tx.abort();
         } else store.put(key, id);
       };
@@ -185,11 +151,5 @@ export async function signImportedKey(
 ): Promise<Uint8Array> {
   const privateKey = key.keys[algorithm];
   if (!privateKey) throw new Error('Unsupported signature algorithm');
-  return new Uint8Array(
-    await crypto.subtle.sign(
-      webAlgorithm(algorithm),
-      privateKey,
-      new Uint8Array(data),
-    ),
-  );
+  return new Uint8Array(await crypto.subtle.sign(webAlgorithm(algorithm), privateKey, new Uint8Array(data)));
 }

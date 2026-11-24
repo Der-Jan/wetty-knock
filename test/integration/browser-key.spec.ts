@@ -15,12 +15,12 @@ import { loadSshKey } from '../../src/client/wetty/auth/keys';
 import { setupBrowserSigner } from '../../src/client/wetty/auth/session';
 import { validateBrowserSsh } from '../../src/server/browserAgent/command';
 import { browserSshIntegration } from '../../src/server/browserAgent/integration';
-import { BROWSER_KEY_SCOPE, fields } from '../../src/shared/browserAgent';
-import { sshDefault } from '../../src/shared/defaults';
+import { BROWSER_KEY_SCOPE, fields } from '../../src/protocol/browserAgent';
+import { sshDefault } from '../../src/server/config/defaults';
 import type { ForwardApproval } from '../../src/client/wetty/auth/forwardPrompt';
 import type { HostApproval } from '../../src/client/wetty/auth/hostTrust';
 import type { ImportApproval } from '../../src/client/wetty/auth/keyringSession';
-import type { SSH } from '../../src/shared/interfaces';
+import type { SSH } from '../../src/server/config/types';
 import type { ChildProcess } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
 

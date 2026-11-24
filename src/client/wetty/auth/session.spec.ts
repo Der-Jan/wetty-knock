@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { expect } from 'chai';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
-import { fields, publicBlob, sshString } from '../../../shared/browserAgent';
+import { fields, publicBlob, sshString } from '../../../protocol/browserAgent';
 import { setupBrowserSigner } from './session';
 import type { ForwardApproval } from './forwardPrompt';
 import type { Socket } from 'socket.io-client';
@@ -35,18 +35,13 @@ describe('Browser signing session', function signerSuite() {
       approvals.push(user);
       return true;
     };
-    setupBrowserSigner(socket as unknown as Socket, (...args) =>
-      approve(...args),
-    );
+    setupBrowserSigner(socket as unknown as Socket, (...args) => approve(...args));
   });
   afterEach(() => {
     socket.emit('disconnect');
     globalThis.indexedDB = original;
   });
-  async function message(
-    event: string,
-    payload: unknown,
-  ): Promise<Record<string, unknown>> {
+  async function message(event: string, payload: unknown): Promise<Record<string, unknown>> {
     return fields(
       await new Promise<unknown>((resolve) => {
         socket.once('browser-key:result', resolve);
@@ -78,15 +73,11 @@ describe('Browser signing session', function signerSuite() {
       algorithm: 'rsa-sha2-256',
       data: data(blob),
     };
-    expect(
-      await message('browser-key:sign', { ...request, sessionId: 'other' }),
-    ).to.have.property('error');
+    expect(await message('browser-key:sign', { ...request, sessionId: 'other' })).to.have.property('error');
     expect(await message('browser-key:sign', request))
       .to.have.property('signature')
       .with.length(384);
-    expect(await message('browser-key:sign', request)).to.have.property(
-      'error',
-    );
+    expect(await message('browser-key:sign', request)).to.have.property('error');
   });
   it('should refuse different usernames, algorithms and arbitrary data', async () => {
     const blob = await prepare();
@@ -137,13 +128,9 @@ describe('Browser signing session', function signerSuite() {
       algorithm: 'rsa-sha2-256',
       data: data(blob, 'git'),
     };
-    expect(await message('browser-key:sign', request)).to.have.property(
-      'signature',
-    );
+    expect(await message('browser-key:sign', request)).to.have.property('signature');
     expect(approvals).to.deep.equal(['git']);
-    expect(await message('browser-key:sign', request)).to.have.property(
-      'error',
-    );
+    expect(await message('browser-key:sign', request)).to.have.property('error');
     expect(
       await message('browser-key:sign', {
         ...request,

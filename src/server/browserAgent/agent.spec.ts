@@ -6,12 +6,12 @@ import { expect } from 'chai';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
 import { loadSshKey } from '../../client/wetty/auth/keys';
-import { publicBlob, Reader, sshString } from '../../shared/browserAgent';
-import { verifySessionBinding } from '../../shared/sessionBinding';
-import { bindingHost } from '../../shared/sessionBinding.test-utils';
+import { publicBlob, Reader, sshString } from '../../protocol/browserAgent';
+import { verifySessionBinding } from '../../protocol/sessionBinding';
+import { bindingHost } from '../../protocol/sessionBinding.test-utils';
 import { createBrowserAgent } from './agent';
-import type { BrowserAgent } from './agent';
 import type { BrowserSshKey } from '../../client/wetty/auth/keys';
+import type { BrowserAgent } from './agent';
 
 function authData(blob: Uint8Array, user = 'test'): Uint8Array {
   return new Uint8Array([
@@ -27,22 +27,10 @@ function authData(blob: Uint8Array, user = 'test'): Uint8Array {
 }
 
 function signPacket(blob: Uint8Array, flags = 2, user = 'test'): Uint8Array {
-  return new Uint8Array([
-    13,
-    ...sshString(blob),
-    ...sshString(authData(blob, user)),
-    0,
-    0,
-    0,
-    flags,
-  ]);
+  return new Uint8Array([13, ...sshString(blob), ...sshString(authData(blob, user)), 0, 0, 0, flags]);
 }
 
-async function request(
-  path: string,
-  packet: Uint8Array,
-  fragmented = false,
-): Promise<Buffer> {
+async function request(path: string, packet: Uint8Array, fragmented = false): Promise<Buffer> {
   const client = createConnection(path);
   try {
     await once(client, 'connect');
@@ -54,10 +42,7 @@ async function request(
       client.on('error', reject);
       client.on('data', (data: Buffer) => {
         result = Buffer.concat([result, data]);
-        if (
-          result.length >= 4 &&
-          result.length === result.readUInt32BE(0) + 4
-        ) {
+        if (result.length >= 4 && result.length === result.readUInt32BE(0) + 4) {
           resolve(result.subarray(4));
         }
       });
@@ -94,9 +79,7 @@ describe('Browser SSH agent', function agentSuite() {
   });
 
   it('should advertise exactly the enrolled public key across fragmented frames', async () => {
-    const reader = new Reader(
-      await request(agent.path, new Uint8Array([11]), true),
-    );
+    const reader = new Reader(await request(agent.path, new Uint8Array([11]), true));
     expect(reader.byte()).to.equal(12);
     expect(reader.uint32()).to.equal(1);
     expect(reader.string()).to.deep.equal(blob);
@@ -116,36 +99,26 @@ describe('Browser SSH agent', function agentSuite() {
   });
 
   it('should refuse SHA-1, SHA-512 and combined flags without signing', async () => {
-    const replies = await Promise.all(
-      [0, 4, 6].map((flags) => request(agent.path, signPacket(blob, flags))),
-    );
+    const replies = await Promise.all([0, 4, 6].map((flags) => request(agent.path, signPacket(blob, flags))));
     replies.forEach((reply) => expect([...reply]).to.deep.equal([5]));
     expect(signs).to.equal(0);
   });
 
   it('should refuse requests for a different SSH user', async () => {
-    expect([
-      ...(await request(agent.path, signPacket(blob, 2, 'other'))),
-    ]).to.deep.equal([5]);
+    expect([...(await request(agent.path, signPacket(blob, 2, 'other')))]).to.deep.equal([5]);
     expect(signs).to.equal(0);
   });
 
   it('should refuse extension and identity mutation operations', async () => {
-    const replies = await Promise.all(
-      [17, 19, 27].map((type) => request(agent.path, new Uint8Array([type]))),
-    );
+    const replies = await Promise.all([17, 19, 27].map((type) => request(agent.path, new Uint8Array([type]))));
     replies.forEach((reply) => expect([...reply]).to.deep.equal([5]));
     expect(signs).to.equal(0);
   });
 
   it('should reject invalid signatures from a browser', async () => {
-    const invalid = await createBrowserAgent(blob, 'test', () =>
-      Promise.resolve(new Uint8Array(384)),
-    );
+    const invalid = await createBrowserAgent(blob, 'test', () => Promise.resolve(new Uint8Array(384)));
     try {
-      expect([
-        ...(await request(invalid.path, signPacket(blob))),
-      ]).to.deep.equal([5]);
+      expect([...(await request(invalid.path, signPacket(blob)))]).to.deep.equal([5]);
     } finally {
       await invalid.close();
     }
@@ -163,21 +136,13 @@ describe('Browser SSH agent', function agentSuite() {
       },
     );
     try {
-      for (const packet of [
-        new Uint8Array([17]),
-        new Uint8Array([19]),
-        signPacket(blob, 2, 'other'),
-      ]) {
+      for (const packet of [new Uint8Array([17]), new Uint8Array([19]), signPacket(blob, 2, 'other')]) {
         // eslint-disable-next-line no-await-in-loop
         expect([...(await request(managed.path, packet))]).to.deep.equal([5]);
       }
       expect(calls).to.equal(0);
-      expect([
-        ...(await request(managed.path, new Uint8Array([11]))),
-      ]).to.deep.equal([6]);
-      expect([
-        ...(await request(managed.path, signPacket(blob))),
-      ]).to.deep.equal([6]);
+      expect([...(await request(managed.path, new Uint8Array([11])))]).to.deep.equal([6]);
+      expect([...(await request(managed.path, signPacket(blob)))]).to.deep.equal([6]);
       expect(calls).to.equal(2);
     } finally {
       await managed.close();
@@ -238,10 +203,7 @@ describe('Browser SSH agent', function agentSuite() {
         client.on('error', reject);
         const receive = (chunk: Buffer): void => {
           buffer = Buffer.concat([buffer, chunk]);
-          if (
-            buffer.length >= 4 &&
-            buffer.length === buffer.readUInt32BE(0) + 4
-          ) {
+          if (buffer.length >= 4 && buffer.length === buffer.readUInt32BE(0) + 4) {
             client.off('data', receive);
             client.off('error', reject);
             resolve(buffer.subarray(4));
@@ -254,11 +216,7 @@ describe('Browser SSH agent', function agentSuite() {
     };
     try {
       await once(client, 'connect');
-      expect([
-        ...(await exchange(
-          new Uint8Array([27, ...sshString('unknown@example')]),
-        )),
-      ]).to.deep.equal([5]);
+      expect([...(await exchange(new Uint8Array([27, ...sshString('unknown@example')])))]).to.deep.equal([5]);
       const host = bindingHost();
       expect([...(await exchange(host.packet()))]).to.deep.equal([6]);
       const broken = host.packet();

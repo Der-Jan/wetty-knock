@@ -24,14 +24,9 @@ describe('Forwarded signing approval', () => {
     sinon.restore();
   });
   it('should show the user safely, explain the unknown destination and default to denial', async () => {
-    const result = promptForwardSign(
-      '<img src=x>',
-      new AbortController().signal,
-    );
+    const result = promptForwardSign('<img src=x>', new AbortController().signal);
     expect(document.querySelector('img')).to.equal(null);
-    expect(document.body.textContent)
-      .to.contain('<img src=x>')
-      .and.contain('destination is not verified');
+    expect(document.body.textContent).to.contain('<img src=x>').and.contain('destination is not verified');
     const deny = document.querySelector('button');
     expect(document.activeElement).to.equal(deny);
     deny?.click();
@@ -39,14 +34,8 @@ describe('Forwarded signing approval', () => {
     expect(document.querySelector('dialog')).to.equal(null);
   });
   it('should describe imported-key initial login separately', async () => {
-    const result = promptForwardSign(
-      'alice',
-      new AbortController().signal,
-      true,
-    );
-    expect(document.body.textContent)
-      .to.contain('configured SSH server')
-      .and.not.to.contain('remote process');
+    const result = promptForwardSign('alice', new AbortController().signal, true);
+    expect(document.body.textContent).to.contain('configured SSH server').and.not.to.contain('remote process');
     document.querySelector('button')?.click();
     expect(await result).to.equal(false);
   });
@@ -75,16 +64,11 @@ describe('Forwarded signing approval', () => {
     }
   });
   it('offers session consent only for a verified host-bound request and displays its path safely', async () => {
-    const result = promptForwardSign(
-      'git',
-      new AbortController().signal,
-      false,
-      {
-        hostFingerprint: 'SHA256:destination<img>',
-        forwardingHostFingerprints: ['SHA256:hop'],
-        canRemember: true,
-      },
-    );
+    const result = promptForwardSign('git', new AbortController().signal, false, {
+      hostFingerprint: 'SHA256:destination<img>',
+      forwardingHostFingerprints: ['SHA256:hop'],
+      canRemember: true,
+    });
     expect(document.querySelector('img')).to.equal(null);
     expect(document.body.textContent)
       .to.contain('SHA256:destination<img>')
@@ -96,20 +80,13 @@ describe('Forwarded signing approval', () => {
     expect(await result).to.equal('session');
   });
   it('keeps non-hostbound authentication on one-use approval', async () => {
-    const result = promptForwardSign(
-      'git',
-      new AbortController().signal,
-      false,
-      {
-        hostFingerprint: 'SHA256:host',
-        forwardingHostFingerprints: [],
-        canRemember: false,
-      },
-    );
+    const result = promptForwardSign('git', new AbortController().signal, false, {
+      hostFingerprint: 'SHA256:host',
+      forwardingHostFingerprints: [],
+      canRemember: false,
+    });
     expect(document.querySelectorAll('button')).to.have.length(2);
-    expect(document.body.textContent).to.contain(
-      'approval is for this use only',
-    );
+    expect(document.body.textContent).to.contain('approval is for this use only');
     document.querySelector('button')?.click();
     expect(await result).to.equal(false);
   });

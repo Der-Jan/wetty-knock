@@ -3,16 +3,10 @@ import { chmod, mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  MAX_AGENT_PACKET,
-  Reader,
-  checkUserAuth,
-  equalBytes,
-  sshString,
-} from '../../shared/browserAgent.js';
-import { checkForwardedAuth } from '../../shared/forwardedAuth.js';
-import { signatureAlgorithm } from '../../shared/importedKeys.js';
-import { logger } from '../../shared/logger.js';
+import { MAX_AGENT_PACKET, Reader, checkUserAuth, equalBytes, sshString } from '../../protocol/browserAgent.js';
+import { checkForwardedAuth } from '../../protocol/forwardedAuth.js';
+import { signatureAlgorithm } from '../../protocol/importedKeys.js';
+import { logger } from '../observability/logger.js';
 import type { Socket } from 'node:net';
 
 export interface BrowserAgent {
@@ -30,10 +24,7 @@ export async function createBrowserAgent(
   blob: Uint8Array,
   user: string | undefined,
   sign: (data: Uint8Array, connectionId?: string) => Promise<Uint8Array>,
-  handleKeys?: (
-    packet: Uint8Array,
-    connectionId?: string,
-  ) => Promise<Uint8Array>,
+  handleKeys?: (packet: Uint8Array, connectionId?: string) => Promise<Uint8Array>,
   bindings?: AgentBindings,
 ): Promise<BrowserAgent> {
   const reader = new Reader(blob);
@@ -63,9 +54,7 @@ export async function createBrowserAgent(
     clients.add(client);
     const connectionId = randomUUID();
     let bindingFailed = false;
-    client.setTimeout(user === undefined || handleKeys ? 65000 : 15000, () =>
-      client.destroy(),
-    );
+    client.setTimeout(user === undefined || handleKeys ? 65000 : 15000, () => client.destroy());
     client.on('error', () => client.destroy());
     client.once('close', () => {
       clients.delete(client);
@@ -104,10 +93,7 @@ export async function createBrowserAgent(
             else if (type === 13) {
               const requestedKey = request.string();
               const data = request.string();
-              const algorithm = signatureAlgorithm(
-                requestedKey,
-                request.uint32(),
-              );
+              const algorithm = signatureAlgorithm(requestedKey, request.uint32());
               request.end();
               checkUserAuth(data, user, requestedKey, algorithm);
             } else throw new Error('Login agent operation not permitted');
@@ -115,15 +101,7 @@ export async function createBrowserAgent(
           reply = await handleKeys(packet, connectionId);
         } else if (type === 11) {
           request.end();
-          reply = new Uint8Array([
-            12,
-            0,
-            0,
-            0,
-            1,
-            ...sshString(blob),
-            ...sshString('WeTTY browser key'),
-          ]);
+          reply = new Uint8Array([12, 0, 0, 0, 1, ...sshString(blob), ...sshString('WeTTY browser key')]);
         } else if (type === 13) {
           const requestedKey = request.string();
           const data = request.string();
@@ -133,20 +111,12 @@ export async function createBrowserAgent(
             if (user === undefined) checkForwardedAuth(data, blob);
             else checkUserAuth(data, user, blob);
             const signature = await sign(data, connectionId);
-            if (
-              signature.length !== 384 ||
-              !verify('RSA-SHA256', data, publicKey, signature)
-            ) {
+            if (signature.length !== 384 || !verify('RSA-SHA256', data, publicKey, signature)) {
               throw new Error('Invalid browser signature');
             }
             reply = new Uint8Array([
               14,
-              ...sshString(
-                new Uint8Array([
-                  ...sshString('rsa-sha2-256'),
-                  ...sshString(signature),
-                ]),
-              ),
+              ...sshString(new Uint8Array([...sshString('rsa-sha2-256'), ...sshString(signature)])),
             ]);
           }
         }

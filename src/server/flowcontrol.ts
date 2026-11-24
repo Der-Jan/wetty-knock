@@ -1,4 +1,9 @@
-import { Socket } from 'socket.io';
+import {
+  MAX_FLOW_CONTROL_COMMIT,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
+} from '../protocol/socket-events.js';
+import type { Socket } from 'socket.io';
 
 /**
  * tinybuffer to lower message pressure on the websocket.
@@ -6,49 +11,53 @@ import { Socket } from 'socket.io';
  * If the accumulated data exceeds `maxSize` the message will be sent
  * immediately.
  */
-export function tinybuffer(socket: Socket, timeout: number, maxSize: number) {
-  const s: string[] = [];
+export interface BufferedSender {
+  (data: string): void;
+  cancel(): void;
+  flush(): void;
+}
+
+export function tinybuffer(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+  timeout: number,
+  maxSize: number,
+): BufferedSender {
+  const chunks: string[] = [];
+  let active = true;
   let length = 0;
-  let sender: NodeJS.Timeout | null = null;
-  let disposed = false;
-  const send = (data: string): void => {
-    if (disposed) return;
-    s.push(data);
-    length += data.length;
-    if (length > maxSize) {
-      socket.emit('data', s.join(''));
-      s.length = 0;
-      length = 0;
-      if (sender) {
-        clearTimeout(sender);
-        sender = null;
-      }
-    } else {
-      sender ??= setTimeout(() => {
-        socket.emit('data', s.join(''));
-        s.length = 0;
-        length = 0;
-        sender = null;
-      }, timeout);
+  let sender: NodeJS.Timeout | undefined;
+
+  function clear(): void {
+    chunks.length = 0;
+    length = 0;
+    if (sender !== undefined) {
+      clearTimeout(sender);
+      sender = undefined;
     }
+  }
+
+  function emit(): void {
+    if (!active || length === 0) return;
+    socket.emit('data', chunks.join(''));
+    clear();
+  }
+
+  const send = ((data: string): void => {
+    if (!active || data.length === 0) return;
+    chunks.push(data);
+    length += data.length;
+    if (length > maxSize) emit();
+    else sender ??= setTimeout(emit, timeout);
+  }) as BufferedSender;
+
+  send.cancel = (): void => {
+    if (!active) return;
+    active = false;
+    clear();
   };
-  return Object.assign(send, {
-    flush: (): void => {
-      if (sender) clearTimeout(sender);
-      sender = null;
-      const data = s.join('');
-      s.length = 0;
-      length = 0;
-      if (!disposed && data.length > 0) socket.emit('data', data);
-    },
-    dispose: (): void => {
-      disposed = true;
-      if (sender) clearTimeout(sender);
-      sender = null;
-      s.length = 0;
-      length = 0;
-    },
-  });
+
+  send.flush = emit;
+  return send;
 }
 
 /**
@@ -74,7 +83,7 @@ export function tinybuffer(socket: Socket, timeout: number, maxSize: number) {
 export class FlowControlServer {
   public counter = 0;
   public low = 524288; // 2^19 --> 2x ackBytes from frontend
-  public high = 2097152; // 2^21 --> 8x ackBytes from frontend
+  public high = MAX_FLOW_CONTROL_COMMIT; // 2^21 --> 8x ackBytes from frontend
 
   constructor(low?: number, high?: number) {
     if (low != null) {
@@ -88,12 +97,12 @@ export class FlowControlServer {
   public account(length: number): boolean {
     const old = this.counter;
     this.counter += length;
-    return old < this.high && this.counter > this.high;
+    return old < this.high && this.counter >= this.high;
   }
 
   public commit(length: number): boolean {
     const old = this.counter;
     this.counter -= length;
-    return old > this.low && this.counter < this.low;
+    return old > this.low && this.counter <= this.low;
   }
 }

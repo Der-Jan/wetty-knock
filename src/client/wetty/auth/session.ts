@@ -1,11 +1,5 @@
-import {
-  BROWSER_KEY_SCOPE,
-  bytes,
-  checkUserAuth,
-  fields,
-  publicBlob,
-} from '../../../shared/browserAgent';
-import { checkForwardedAuth } from '../../../shared/forwardedAuth';
+import { BROWSER_KEY_SCOPE, bytes, checkUserAuth, fields, publicBlob } from '../../../protocol/browserAgent';
+import { checkForwardedAuth } from '../../../protocol/forwardedAuth';
 import { promptForwardSign } from './forwardPrompt';
 import { ForwardedApprovals } from './forwardedApprovals';
 import { setupKeyringSession } from './keyringSession';
@@ -52,11 +46,7 @@ export function setupBrowserSigner(
     const connectionId = socket.id;
     const ack = (value: Record<string, unknown>): void => {
       if (!socket.connected || socket.id !== connectionId) return;
-      if (
-        typeof payload !== 'object' ||
-        payload === null ||
-        Array.isArray(payload)
-      ) {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
         return;
       }
       const request = fields(payload);
@@ -141,11 +131,7 @@ export function setupBrowserSigner(
         }
         active.seen.add(request.requestId);
         await active.approvals.bind(request.agentConnectionId, request.packet);
-        if (
-          socket.connected &&
-          socket.id === connectionId &&
-          context === active
-        ) {
+        if (socket.connected && socket.id === connectionId && context === active) {
           socket.emit('browser-key:result', {
             v: 1,
             sessionId: active.sessionId,
@@ -154,11 +140,7 @@ export function setupBrowserSigner(
           });
         }
       } catch {
-        if (
-          socket.connected &&
-          socket.id === connectionId &&
-          context === active
-        ) {
+        if (socket.connected && socket.id === connectionId && context === active) {
           socket.emit('browser-key:result', {
             v: 1,
             sessionId: request.sessionId,
@@ -176,11 +158,7 @@ export function setupBrowserSigner(
     const connectionId = socket.id;
     const ack = (value: Record<string, unknown>): void => {
       if (!socket.connected || socket.id !== connectionId) return;
-      if (
-        typeof payload !== 'object' ||
-        payload === null ||
-        Array.isArray(payload)
-      ) {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
         return;
       }
       const request = fields(payload);
@@ -191,8 +169,7 @@ export function setupBrowserSigner(
       });
     };
     const active = context;
-    const current = (): boolean =>
-      socket.connected && context === active && socket.id === connectionId;
+    const current = (): boolean => socket.connected && context === active && socket.id === connectionId;
     void (async () => {
       const request = fields(payload);
       if (
@@ -210,29 +187,17 @@ export function setupBrowserSigner(
       active.seen.add(request.requestId);
       const data = bytes(request.data, 32768);
       const forwarded = request.forwarded === true;
-      if (
-        request.forwarded !== undefined &&
-        typeof request.forwarded !== 'boolean'
-      ) {
+      if (request.forwarded !== undefined && typeof request.forwarded !== 'boolean') {
         throw new Error('Invalid forwarding flag');
       }
       if (forwarded && (!active.forwarding || active.prompting)) {
         throw new Error('Forwarding unavailable');
       }
-      const user = forwarded
-        ? checkForwardedAuth(data, active.blob)
-        : checkUserAuth(data, active.user, active.blob);
+      const user = forwarded ? checkForwardedAuth(data, active.blob) : checkUserAuth(data, active.user, active.blob);
       if (forwarded) {
         active.prompting = true;
         try {
-          await active.approvals.approve(
-            request.agentConnectionId,
-            data,
-            active.blob,
-            'rsa-sha2-256',
-            approve,
-            user,
-          );
+          await active.approvals.approve(request.agentConnectionId, data, active.blob, 'rsa-sha2-256', approve, user);
         } finally {
           active.prompting = false;
         }

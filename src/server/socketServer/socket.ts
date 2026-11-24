@@ -2,14 +2,11 @@ import http from 'http';
 import https from 'https';
 import { Server } from 'socket.io';
 
-import {
-  defaultPingInterval,
-  defaultPingTimeout,
-  positiveIntOr,
-} from '../../shared/defaults.js';
-import { logger } from '../../shared/logger.js';
 import { browserOriginOptions } from '../browserAgent/origin.js';
-import type { SSLBuffer } from '../../shared/interfaces.js';
+import { defaultPingInterval, defaultPingTimeout, positiveIntOr } from '../config/defaults.js';
+import { logger } from '../observability/logger.js';
+import type { ClientToServerEvents, ServerToClientEvents } from '../../protocol/socket-events.js';
+import type { SSLBuffer } from '../config/types.js';
 import type express from 'express';
 import type { IncomingMessage } from 'http';
 
@@ -26,11 +23,7 @@ import type { IncomingMessage } from 'http';
  * @returns a usable heartbeat value in milliseconds
  *
  */
-const heartbeat = (
-  value: number | undefined,
-  fallback: number,
-  option: string,
-): number => {
+const heartbeat = (value: number | undefined, fallback: number, option: string): number => {
   const resolved = positiveIntOr(value, fallback);
   if (value !== undefined && resolved !== value) {
     logger().warn('Ignoring invalid heartbeat value, using default', {
@@ -72,8 +65,7 @@ const originAllowed = (
     );
   }
 
-  const parsedOrigin =
-    typeof origin === 'string' ? parseOrigin(origin) : undefined;
+  const parsedOrigin = typeof origin === 'string' ? parseOrigin(origin) : undefined;
   return parsedOrigin !== undefined && allowedOrigins.has(parsedOrigin);
 };
 
@@ -121,51 +113,23 @@ export const listen = (
     allowMissingOrigin = false,
     browserOrigin,
   }: ListenOptions,
-): Server => {
+): Promise<Server<ClientToServerEvents, ServerToClientEvents>> => {
   // Browser-key deployments already pin an explicit origin. Use it when no
   // separate allowlist is configured, then enforce both policies below.
   const browserOrigins = browserOrigin ? [browserOrigin] : [];
-  const allowed = originAllowlist(
-    allowedOrigins.length ? allowedOrigins : browserOrigins,
-  );
+  const allowed = originAllowlist(allowedOrigins.length ? allowedOrigins : browserOrigins);
   const browserRequest = browserOriginOptions(browserOrigin).allowRequest;
   // Canonical origins contain only the scheme and authority.
-  const allowedHosts = new Set(
-    [...allowed].map((origin) => origin.slice(origin.indexOf('://') + 3)),
-  );
+  const allowedHosts = new Set([...allowed].map((origin) => origin.slice(origin.indexOf('://') + 3)));
 
-  // Create the base HTTP/HTTPS server
-  const server =
-    key !== undefined && cert !== undefined
-      ? https.createServer({ key, cert }, app)
-      : http.createServer(app);
-
-  // Start listening on either Unix socket or TCP
-  if (socket) {
-    server.listen(socket, () => {
-      logger().info('Server listening on Unix socket', { socket });
-    });
-  } else {
-    server.listen(port, host, () => {
-      logger().info('Server started', {
-        port,
-        connection: key !== undefined && cert !== undefined ? 'https' : 'http',
-      });
-    });
-  }
-
-  // Create Socket.IO server
-  return new Server(server, {
+  const httpServer =
+    key !== undefined && cert !== undefined ? https.createServer({ key, cert }, app) : http.createServer(app);
+  const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     path: `${path}/socket.io`,
     pingInterval: heartbeat(pingInterval, defaultPingInterval, 'pingInterval'),
     pingTimeout: heartbeat(pingTimeout, defaultPingTimeout, 'pingTimeout'),
     allowRequest: (req, callback) => {
-      const accepted = originAllowed(
-        req,
-        allowed,
-        allowedHosts,
-        allowMissingOrigin,
-      );
+      const accepted = originAllowed(req, allowed, allowedHosts, allowMissingOrigin);
       if (!accepted) {
         callback('Origin not allowed', false);
       } else if (browserRequest) {
@@ -174,5 +138,30 @@ export const listen = (
         callback(null, true);
       }
     },
+  });
+
+  return new Promise((resolve, reject) => {
+    function onError(error: Error): void {
+      httpServer.removeListener('listening', onListening);
+      reject(error);
+    }
+
+    function onListening(): void {
+      httpServer.removeListener('error', onError);
+      if (socket) {
+        logger().info('Server listening on Unix socket', { socket });
+      } else {
+        logger().info('Server started', {
+          port,
+          connection: key !== undefined && cert !== undefined ? 'https' : 'http',
+        });
+      }
+      resolve(io);
+    }
+
+    httpServer.once('error', onError);
+    httpServer.once('listening', onListening);
+    if (socket) httpServer.listen(socket);
+    else httpServer.listen(port, host);
   });
 };

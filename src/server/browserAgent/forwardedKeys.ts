@@ -1,17 +1,7 @@
 import { createPublicKey, verify } from 'node:crypto';
-import {
-  Reader,
-  bytes,
-  equalBytes,
-  fields,
-  sshString,
-} from '../../shared/browserAgent.js';
-import { checkForwardedAuth } from '../../shared/forwardedAuth.js';
-import {
-  MAX_IMPORTED_KEYS,
-  publicIdentity,
-  signatureAlgorithm,
-} from '../../shared/importedKeys.js';
+import { Reader, bytes, equalBytes, fields, sshString } from '../../protocol/browserAgent.js';
+import { checkForwardedAuth } from '../../protocol/forwardedAuth.js';
+import { MAX_IMPORTED_KEYS, publicIdentity, signatureAlgorithm } from '../../protocol/importedKeys.js';
 
 export type KeyRequest = (
   operation: string,
@@ -36,10 +26,7 @@ export function forwardedKeys(
     if (type === 11) {
       reader.end();
       const result = await requestBrowser('list', {}, connectionId);
-      if (
-        !Array.isArray(result.identities) ||
-        result.identities.length > MAX_IMPORTED_KEYS
-      ) {
+      if (!Array.isArray(result.identities) || result.identities.length > MAX_IMPORTED_KEYS) {
         throw new Error('Invalid identity list');
       }
       const identities = [
@@ -60,10 +47,7 @@ export function forwardedKeys(
         0,
         0,
         identities.length,
-        ...identities.flatMap(({ blob, comment }) => [
-          ...sshString(blob),
-          ...sshString(comment),
-        ]),
+        ...identities.flatMap(({ blob, comment }) => [...sshString(blob), ...sshString(comment)]),
       ]);
     }
     if (type !== 13) return new Uint8Array([5]);
@@ -80,26 +64,15 @@ export function forwardedKeys(
       }
       signature = await signPrimary(data, connectionId);
     } else {
-      const result = await requestBrowser(
-        'sign',
-        { blob, data, flags },
-        connectionId,
-      );
+      const result = await requestBrowser('sign', { blob, data, flags }, connectionId);
       signature = bytes(result.signature, 1024);
     }
     const { jwk } = publicIdentity(blob);
     const key = createPublicKey({ key: jwk, format: 'jwk' });
     const hash = algorithm === 'rsa-sha2-256' ? 'RSA-SHA256' : 'RSA-SHA512';
-    if (
-      !verify(algorithm === 'ssh-ed25519' ? null : hash, data, key, signature)
-    ) {
+    if (!verify(algorithm === 'ssh-ed25519' ? null : hash, data, key, signature)) {
       throw new Error('Invalid browser signature');
     }
-    return new Uint8Array([
-      14,
-      ...sshString(
-        new Uint8Array([...sshString(algorithm), ...sshString(signature)]),
-      ),
-    ]);
+    return new Uint8Array([14, ...sshString(new Uint8Array([...sshString(algorithm), ...sshString(signature)]))]);
   };
 }

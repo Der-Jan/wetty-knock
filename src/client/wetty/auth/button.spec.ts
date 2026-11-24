@@ -76,12 +76,8 @@ describe('Public key paste button', function buttonSuite() {
   it('should create an accessible control once without template markup', async () => {
     setupSshKeyButton();
     expect(document.querySelectorAll('#ssh-key-tools')).to.have.length(1);
-    expect(button.getAttribute('aria-label')).to.equal(
-      'Create / paste SSH public key',
-    );
-    expect(
-      document.getElementById('ssh-key-status')?.getAttribute('aria-live'),
-    ).to.equal('polite');
+    expect(button.getAttribute('aria-label')).to.equal('Create / paste SSH public key');
+    expect(document.getElementById('ssh-key-status')?.getAttribute('aria-live')).to.equal('polite');
     const term = terminal();
     await click();
     expect(term.paste.calledOnce).to.equal(true);
@@ -99,9 +95,7 @@ describe('Public key paste button', function buttonSuite() {
   });
   it('should keep console output available without a connected terminal', async () => {
     await click();
-    expect(document.getElementById('ssh-key-status')?.textContent).to.contain(
-      'browser console',
-    );
+    expect(document.getElementById('ssh-key-status')?.textContent).to.contain('browser console');
   });
   it('should never paste into a replacement session after reconnect', async () => {
     const old = terminal();
@@ -112,16 +106,12 @@ describe('Public key paste button', function buttonSuite() {
     await done;
     expect(old.paste.called).to.equal(false);
     expect(replacement.paste.called).to.equal(false);
-    expect(document.getElementById('ssh-key-status')?.textContent).to.contain(
-      'browser console',
-    );
+    expect(document.getElementById('ssh-key-status')?.textContent).to.contain('browser console');
   });
   it('should dismiss the paste confirmation on the next terminal input', async () => {
     const term = terminal();
     await click();
-    expect(document.getElementById('ssh-key-status')?.textContent).to.contain(
-      'Public key pasted',
-    );
+    expect(document.getElementById('ssh-key-status')?.textContent).to.contain('Public key pasted');
     term.input.emit('data', 'x');
     expect(document.getElementById('ssh-key-status')?.textContent).to.equal('');
     expect(term.input.listenerCount('data')).to.equal(0);
@@ -136,9 +126,7 @@ describe('Public key paste button', function buttonSuite() {
     clock.tick(4000);
     await click();
     clock.tick(1000);
-    expect(document.getElementById('ssh-key-status')?.textContent).to.contain(
-      'Public key pasted',
-    );
+    expect(document.getElementById('ssh-key-status')?.textContent).to.contain('Public key pasted');
     clock.tick(4000);
     expect(document.getElementById('ssh-key-status')?.textContent).to.equal('');
     expect(term.input.listenerCount('data')).to.equal(0);

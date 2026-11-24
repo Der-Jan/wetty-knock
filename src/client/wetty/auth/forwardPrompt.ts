@@ -12,12 +12,7 @@ export type ForwardApproval = (
   initialLogin?: boolean,
   destination?: ForwardDestination,
 ) => Promise<boolean | 'session'> | boolean | 'session';
-export const promptForwardSign: ForwardApproval = (
-  user,
-  signal,
-  initialLogin,
-  destination,
-) => {
+export const promptForwardSign: ForwardApproval = (user, signal, initialLogin, destination) => {
   let message = `A remote process requests use of your browser key to log in as ${user}. The destination is not verified by this browser. Approve only if you just started this SSH or Git operation. This request expires in 45 seconds.`;
   if (initialLogin) {
     message = `Log in to your configured SSH server as ${user}? This request expires in 45 seconds.`;
@@ -31,9 +26,7 @@ export const promptForwardSign: ForwardApproval = (
     message = `Log in as ${user}. Verified session host key: ${destination.hostFingerprint}.\n${path}\nSSH verifies the hostname. ${scope} This request expires in 45 seconds.`;
   }
   return promptAgentChoice(
-    initialLogin
-      ? 'Use imported SSH key for login?'
-      : 'Allow forwarded SSH authentication?',
+    initialLogin ? 'Use imported SSH key for login?' : 'Allow forwarded SSH authentication?',
     message,
     'Allow once',
     signal,

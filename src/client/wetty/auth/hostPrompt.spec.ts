@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { JSDOM } from 'jsdom';
 import 'mocha';
-import { sshString } from '../../../shared/browserAgent';
-import { hostFingerprint } from '../../../shared/hostKey';
+import { sshString } from '../../../protocol/browserAgent';
+import { hostFingerprint } from '../../../protocol/hostKey';
 import { promptHostTrust } from './hostPrompt';
 
 const key = (value: number): string =>
@@ -41,12 +41,7 @@ describe('Host trust dialog', () => {
       });
       observer.observe(document.body, { childList: true });
     });
-    const result = promptHostTrust(
-      { host: 'server.example', port: 2222 },
-      key(1),
-      previous,
-      controller.signal,
-    );
+    const result = promptHostTrust({ host: 'server.example', port: 2222 }, key(1), previous, controller.signal);
     return {
       result: Promise.resolve(result),
       controller,

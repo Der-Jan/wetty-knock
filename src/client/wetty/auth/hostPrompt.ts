@@ -1,12 +1,7 @@
-import { hostFingerprint } from '../../../shared/hostKey';
+import { hostFingerprint } from '../../../protocol/hostKey';
 import type { HostApproval } from './hostTrust';
 
-export const promptHostTrust: HostApproval = async (
-  target,
-  offered,
-  previous,
-  signal,
-) => {
+export const promptHostTrust: HostApproval = async (target, offered, previous, signal) => {
   const fingerprint = await hostFingerprint(offered);
   const oldFingerprint = previous ? await hostFingerprint(previous) : undefined;
   signal.throwIfAborted();
@@ -15,9 +10,7 @@ export const promptHostTrust: HostApproval = async (
     dialog.className = 'ssh-host-trust';
     const title = document.createElement('h2');
     title.id = 'ssh-host-trust-title';
-    title.textContent = previous
-      ? 'SSH host key changed'
-      : 'Trust this SSH host?';
+    title.textContent = previous ? 'SSH host key changed' : 'Trust this SSH host?';
     dialog.setAttribute('aria-labelledby', title.id);
     const destination = document.createElement('p');
     destination.textContent = `Host: ${target.host} · Port: ${String(target.port)}`;
@@ -31,13 +24,10 @@ export const promptHostTrust: HostApproval = async (
     dialog.append(details);
     const trust = document.createElement('button');
     trust.type = 'button';
-    trust.textContent = previous
-      ? 'Replace trusted key and connect'
-      : 'Trust and connect';
+    trust.textContent = previous ? 'Replace trusted key and connect' : 'Trust and connect';
     if (previous) {
       const label = document.createElement('label');
-      label.textContent =
-        'Type the complete new SHA256 fingerprint to confirm replacement';
+      label.textContent = 'Type the complete new SHA256 fingerprint to confirm replacement';
       const input = document.createElement('input');
       input.type = 'text';
       input.autocomplete = 'off';

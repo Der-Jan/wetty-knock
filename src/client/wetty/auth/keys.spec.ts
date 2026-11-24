@@ -17,10 +17,7 @@ function database(factory: IDBFactory): Promise<IDBDatabase> {
   });
 }
 
-async function storedPair(
-  factory: IDBFactory,
-  scope: string,
-): Promise<CryptoKeyPair> {
+async function storedPair(factory: IDBFactory, scope: string): Promise<CryptoKeyPair> {
   const db = await database(factory);
   try {
     return await new Promise((resolve, reject) => {
@@ -37,11 +34,7 @@ async function storedPair(
   }
 }
 
-async function replaceRecord(
-  factory: IDBFactory,
-  scope: string,
-  value: unknown,
-): Promise<void> {
+async function replaceRecord(factory: IDBFactory, scope: string, value: unknown): Promise<void> {
   const db = await database(factory);
   try {
     await new Promise<void>((resolve, reject) => {
@@ -116,12 +109,8 @@ describe('Browser SSH keys', function keysSuite() {
     expect(pair.privateKey.usages).to.deep.equal(['sign']);
     expect(key.privateKeyExtractable).to.be.false;
     expect(pair.publicKey.extractable).to.be.true;
-    expect(
-      (await failure(crypto.subtle.exportKey('jwk', pair.privateKey))).name,
-    ).to.equal('InvalidAccessError');
-    expect(
-      (await failure(crypto.subtle.exportKey('pkcs8', pair.privateKey))).name,
-    ).to.equal('InvalidAccessError');
+    expect((await failure(crypto.subtle.exportKey('jwk', pair.privateKey))).name).to.equal('InvalidAccessError');
+    expect((await failure(crypto.subtle.exportKey('pkcs8', pair.privateKey))).name).to.equal('InvalidAccessError');
   });
 
   it('should export valid OpenSSH RSA and sign exact binary bytes with SHA-256', async () => {
@@ -158,9 +147,7 @@ describe('Browser SSH keys', function keysSuite() {
     ]);
     const exported = await Promise.all(keys.map((key) => key.publicKey()));
     expect(new Set(exported).size).to.equal(1);
-    expect(await (await loadSshKey('alice', factory)).publicKey()).to.equal(
-      exported[0],
-    );
+    expect(await (await loadSshKey('alice', factory)).publicKey()).to.equal(exported[0]);
   });
 
   it('should isolate storage scopes', async () => {
@@ -173,9 +160,7 @@ describe('Browser SSH keys', function keysSuite() {
     await loadSshKey('alice', factory);
     await replaceRecord(factory, 'alice', { version: 99 });
     const generate = sinon.spy(crypto.subtle, 'generateKey');
-    expect((await failure(loadSshKey('alice', factory))).message).to.include(
-      'invalid',
-    );
+    expect((await failure(loadSshKey('alice', factory))).message).to.include('invalid');
     expect(generate.called).to.be.false;
   });
 
@@ -189,9 +174,7 @@ describe('Browser SSH keys', function keysSuite() {
       privateKey: alice.privateKey,
       publicKey: bob.publicKey,
     });
-    expect((await failure(loadSshKey('alice', factory))).message).to.include(
-      'verification',
-    );
+    expect((await failure(loadSshKey('alice', factory))).message).to.include('verification');
   });
 
   it('should reject an extractable stored private key', async () => {
@@ -207,19 +190,13 @@ describe('Browser SSH keys', function keysSuite() {
       ['sign', 'verify'],
     );
     await replaceRecord(factory, 'alice', { version: 1, ...pair });
-    expect((await failure(loadSshKey('alice', factory))).message).to.include(
-      'invalid',
-    );
+    expect((await failure(loadSshKey('alice', factory))).message).to.include('invalid');
   });
 
   it('should reject unavailable storage without generating a key', async () => {
-    sinon
-      .stub(factory, 'open')
-      .throws(new DOMException('Storage denied', 'SecurityError'));
+    sinon.stub(factory, 'open').throws(new DOMException('Storage denied', 'SecurityError'));
     const generate = sinon.spy(crypto.subtle, 'generateKey');
-    expect((await failure(loadSshKey('alice', factory))).name).to.equal(
-      'SecurityError',
-    );
+    expect((await failure(loadSshKey('alice', factory))).name).to.equal('SecurityError');
     expect(generate.called).to.be.false;
   });
 
@@ -245,14 +222,10 @@ describe('Browser SSH keys', function keysSuite() {
       return request;
     });
     db.close();
-    expect((await failure(loadSshKey('alice', factory))).message).to.include(
-      'aborted',
-    );
+    expect((await failure(loadSshKey('alice', factory))).message).to.include('aborted');
   });
 
   it('should require an explicit scope', async () => {
-    expect((await failure(loadSshKey(' ', factory))).message).to.include(
-      'scope',
-    );
+    expect((await failure(loadSshKey(' ', factory))).message).to.include('scope');
   });
 });

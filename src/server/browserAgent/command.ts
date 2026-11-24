@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import type { SSH } from '../../shared/interfaces.js';
+import type { SSH } from '../config/types.js';
 
 export async function validateBrowserSsh(ssh: SSH): Promise<void> {
   if (
@@ -10,41 +10,21 @@ export async function validateBrowserSsh(ssh: SSH): Promise<void> {
     ssh.port < 1 ||
     ssh.port > 65535
   ) {
-    throw new Error(
-      'browser-key requires a fixed SSH user, host and valid port',
-    );
+    throw new Error('browser-key requires a fixed SSH user, host and valid port');
   }
-  if (
-    ssh.pass ||
-    ssh.key ||
-    ssh.config ||
-    ssh.allowRemoteHosts ||
-    ssh.allowRemoteCommand
-  ) {
-    throw new Error(
-      'browser-key cannot use configured passwords, key files, SSH config or URL overrides',
-    );
+  if (ssh.pass || ssh.key || ssh.config || ssh.allowRemoteHosts || ssh.allowRemoteCommand) {
+    throw new Error('browser-key cannot use configured passwords, key files, SSH config or URL overrides');
   }
-  if (
-    ssh.knownHosts !== 'browser' &&
-    (!isAbsolute(ssh.knownHosts) || !(await stat(ssh.knownHosts)).isFile())
-  ) {
-    throw new Error(
-      'browser-key requires known-hosts=browser or an absolute trusted known-hosts file',
-    );
+  if (ssh.knownHosts !== 'browser' && (!isAbsolute(ssh.knownHosts) || !(await stat(ssh.knownHosts)).isFile())) {
+    throw new Error('browser-key requires known-hosts=browser or an absolute trusted known-hosts file');
   }
   const origin = new URL(ssh.browserOrigin ?? '');
   if (
     origin.origin !== ssh.browserOrigin ||
     (origin.protocol !== 'https:' &&
-      !(
-        origin.protocol === 'http:' &&
-        ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)
-      ))
+      !(origin.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)))
   ) {
-    throw new Error(
-      'browser-origin must be an exact HTTPS origin (HTTP localhost is allowed)',
-    );
+    throw new Error('browser-origin must be an exact HTTPS origin (HTTP localhost is allowed)');
   }
 }
 

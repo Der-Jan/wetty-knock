@@ -1,4 +1,4 @@
-import { BROWSER_KEY_SCOPE } from '../../../shared/browserAgent';
+import { BROWSER_KEY_SCOPE } from '../../../protocol/browserAgent';
 import { loadSshKey } from './keys';
 
 /** Temporary, opt-in key diagnostics shared by the button and dev console. */

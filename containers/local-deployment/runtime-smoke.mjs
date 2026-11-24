@@ -8,8 +8,8 @@ import pty from '/usr/src/app/node_modules/node-pty/lib/index.js';
 import { createBrowserAgent } from '/usr/src/app/build/server/browserAgent/agent.js';
 import { createBrowserKnownHosts } from '/usr/src/app/build/server/browserAgent/knownHosts.js';
 import { browserSshCommand } from '/usr/src/app/build/server/browserAgent/command.js';
-import { sshString } from '/usr/src/app/build/shared/browserAgent.js';
-import { sshDefault } from '/usr/src/app/build/shared/defaults.js';
+import { sshString } from '/usr/src/app/build/protocol/browserAgent.js';
+import { sshDefault } from '/usr/src/app/build/server/config/defaults.js';
 import { browserKeySession } from '/usr/src/app/build/server/browserAgent/session.js';
 assert.equal(typeof browserKeySession, 'function');
 

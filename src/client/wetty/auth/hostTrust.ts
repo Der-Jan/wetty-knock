@@ -1,5 +1,5 @@
-import { hostKey, hostTarget } from '../../../shared/hostKey';
-import type { HostTarget } from '../../../shared/hostKey';
+import { hostKey, hostTarget } from '../../../protocol/hostKey';
+import type { HostTarget } from '../../../protocol/hostKey';
 
 const DATABASE = 'wetty-known-hosts';
 const STORE = 'hosts';
@@ -19,9 +19,7 @@ function open(factory: IDBFactory): Promise<IDBDatabase> {
     };
     request.onblocked = () => {
       blocked = true;
-      reject(
-        new Error('Host trust storage is blocked; close other WeTTY tabs'),
-      );
+      reject(new Error('Host trust storage is blocked; close other WeTTY tabs'));
     };
     request.onerror = () => {
       reject(new Error('Host trust storage is unavailable'));
@@ -45,10 +43,7 @@ function record(
 ): Promise<string | undefined> {
   signal.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE,
-      update ? 'readwrite' : 'readonly',
-    );
+    const transaction = db.transaction(STORE, update ? 'readwrite' : 'readonly');
     const store = transaction.objectStore(STORE);
     const index = JSON.stringify([target.host.toLowerCase(), target.port]);
     const request = store.get(index);
@@ -64,21 +59,14 @@ function record(
     };
     transaction.onabort = () => {
       signal.removeEventListener('abort', abort);
-      reject(
-        error instanceof Error
-          ? error
-          : new Error('Host trust storage transaction failed'),
-      );
+      reject(error instanceof Error ? error : new Error('Host trust storage transaction failed'));
     };
     request.onsuccess = () => {
       try {
-        result =
-          request.result === undefined ? undefined : hostKey(request.result);
+        result = request.result === undefined ? undefined : hostKey(request.result);
         if (update) {
           if (result !== update.previous && result !== update.key) {
-            throw new Error(
-              'Host trust changed in another tab; reconnect to review it',
-            );
+            throw new Error('Host trust changed in another tab; reconnect to review it');
           }
           store.put(update.key, index);
           result = update.key;
@@ -100,8 +88,7 @@ export async function browserHostTrust(
   factory: IDBFactory = globalThis.indexedDB,
 ): Promise<string | null> {
   const target = hostTarget(targetValue);
-  const offered =
-    offeredValue === undefined ? undefined : hostKey(offeredValue);
+  const offered = offeredValue === undefined ? undefined : hostKey(offeredValue);
   signal.throwIfAborted();
   if (typeof factory === 'undefined') {
     throw new Error('Host trust requires IndexedDB');

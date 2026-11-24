@@ -1,24 +1,46 @@
 import { spawn } from 'node:child_process';
+import { rm } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import { sassPlugin } from 'esbuild-sass-plugin';
 
+/** @typedef {'SIGINT' | 'SIGTERM'} WatchSignal */
+/** @typedef {{type: 'exit', error: unknown} | {type: 'signal', signal: WatchSignal}} WatchOutcome */
+
 /** @param {string} prog
  * @param {string[]} [args=[]]
- * @returns {[ChildProcess, Promise<{ret: number, sig: NodeJS.Signals}>]}
+ * @param {boolean} [detached=false]
+ * @returns {{proc: import('node:child_process').ChildProcess, done: Promise<void>}}
  */
-function cmd(prog, args = []) {
+function spawnCommand(prog, args = [], detached = false) {
   const proc = spawn(prog, args, {
     cwd: import.meta.dirname,
     stdio: 'inherit',
     env: process.env,
+    detached,
   });
-  const done = new Promise((resolve, _reject) => {
-    proc.addListener('exit', (ret, sig) => {
-      resolve({ ret, sig });
+  /** @type {Promise<void>} */
+  const done = new Promise((resolve, reject) => {
+    proc.once('error', reject);
+    proc.once('exit', (ret, sig) => {
+      if (ret === 0) {
+        resolve();
+        return;
+      }
+      const reason = ret === null ? `signal ${String(sig)}` : `exit code ${String(ret)}`;
+      reject(new Error(`${prog} failed with ${reason}`));
     });
   });
-  return [proc, done];
+  return { proc, done };
+}
+
+/** @param {string} prog
+ * @param {string[]} [args=[]]
+ * @returns {Promise<void>}
+ */
+export function cmd(prog, args = []) {
+  return spawnCommand(prog, args).done;
 }
 
 /** @type import('esbuild').Plugin */
@@ -26,30 +48,23 @@ const typechecker = {
   name: 'typechecker',
   setup(build) {
     build.onStart(async () => {
-      const [_tsc, tscDone] = cmd('pnpm', [
-        'tsc',
-        '-p',
-        'tsconfig.browser.json',
-      ]);
-      const { ret } = await tscDone;
-      if (ret !== 0) {
-        return {
-          warnings: [
-            { text: `Type checking failed: tsc exited with code ${ret}` },
-          ],
-        };
-      }
+      await cmd('pnpm', ['tsc', '-p', 'tsconfig.browser.json']);
       return {};
     });
   },
 };
 
 /** @param {boolean} watching
+ * @returns {Promise<import('esbuild').BuildContext | undefined>}
  */
 async function buildClient(watching) {
   /** @type {esbuild.BuildOptions} */
   const esConf = {
-    entryPoints: ['src/client/wetty.ts', 'src/client/dev.ts'],
+    entryPoints: {
+      wetty: 'src/client/wetty.ts',
+      dev: 'src/client/dev.ts',
+      'xterm_config/functionality': 'src/client/config-editor/index.ts',
+    },
     outdir: 'build/client',
     bundle: true,
     platform: 'browser',
@@ -66,7 +81,8 @@ async function buildClient(watching) {
       copy({
         assets: [
           { from: './src/assets/xterm_config/*', to: 'xterm_config' },
-          { from: './src/assets/favicon.ico', to: 'favicon.ico' },
+          { from: './src/assets/favicon.svg', to: 'favicon.svg' },
+          { from: './src/assets/favicon-alert.svg', to: 'favicon-alert.svg' },
           { from: './src/assets/manifest.json', to: 'manifest.json' },
           { from: './src/assets/sw.js', to: '../sw.js' },
           { from: './src/assets/wetty.svg', to: 'wetty.svg' },
@@ -80,20 +96,104 @@ async function buildClient(watching) {
   if (watching) {
     const buildCtx = await esbuild.context(esConf);
     await buildCtx.watch();
-  } else {
-    esbuild.build(esConf);
+    return buildCtx;
+  }
+  await esbuild.build(esConf);
+  return undefined;
+}
+
+async function buildServer() {
+  await cmd('pnpm', ['tsc', '-p', 'tsconfig.node.json', '--incremental', 'false']);
+}
+
+/** @param {import('node:child_process').ChildProcess} proc
+ * @param {NodeJS.Signals} signal
+ */
+function signalWatcher(proc, signal) {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+  if (process.platform !== 'win32' && proc.pid !== undefined) {
+    try {
+      process.kill(-proc.pid, signal);
+      return;
+    } catch {
+      // Fall back to signaling the direct child if the group is already gone.
+    }
+  }
+  proc.kill(signal);
+}
+
+/** @param {ReturnType<typeof spawnCommand>} watcher */
+async function stopWatcher(watcher) {
+  signalWatcher(watcher.proc, 'SIGTERM');
+  const stopped = await Promise.race([
+    watcher.done.then(
+      () => true,
+      () => true,
+    ),
+    new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), 2000);
+      timer.unref();
+    }),
+  ]);
+  if (!stopped) {
+    signalWatcher(watcher.proc, 'SIGKILL');
+    await watcher.done.catch(() => undefined);
   }
 }
 
-/** @param {boolean} watching
- */
-async function buildServer(watching) {
-  const tscArgs = ['tsc', '-p', 'tsconfig.node.json'];
-  if (watching) tscArgs.push('--watch', '--preserveWatchOutput');
-  const [_tsc, tscDone] = cmd('pnpm', tscArgs);
-  if (!watching) await tscDone;
+async function watchBuild() {
+  const clientContext = await buildClient(true);
+  const serverWatcher = spawnCommand(
+    'pnpm',
+    ['tsc', '-p', 'tsconfig.node.json', '--watch', '--preserveWatchOutput'],
+    process.platform !== 'win32',
+  );
+  /** @type {(signal: WatchSignal) => void} */
+  let resolveSignal = () => undefined;
+  /** @type {Promise<WatchSignal>} */
+  const signalReceived = new Promise((resolve) => {
+    resolveSignal = resolve;
+  });
+  const onSigint = () => resolveSignal('SIGINT');
+  const onSigterm = () => resolveSignal('SIGTERM');
+  process.once('SIGINT', onSigint);
+  process.once('SIGTERM', onSigterm);
+
+  try {
+    /** @type {Promise<WatchOutcome>} */
+    const watcherFinished = serverWatcher.done.then(
+      () => ({ type: 'exit', error: new Error('TypeScript watcher exited') }),
+      (error) => ({ type: 'exit', error }),
+    );
+    /** @type {Promise<WatchOutcome>} */
+    const signalFinished = signalReceived.then((signal) => ({
+      type: 'signal',
+      signal,
+    }));
+    const outcome = await Promise.race([watcherFinished, signalFinished]);
+    if (outcome.type === 'exit') throw outcome.error;
+    process.exitCode = outcome.signal === 'SIGINT' ? 130 : 143;
+  } finally {
+    process.removeListener('SIGINT', onSigint);
+    process.removeListener('SIGTERM', onSigterm);
+    await Promise.allSettled([stopWatcher(serverWatcher), clientContext?.dispose() ?? Promise.resolve()]);
+  }
 }
 
-const watching = process.argv.includes('--watch');
-await buildClient(watching);
-await buildServer(watching);
+export async function main() {
+  const watching = process.argv.includes('--watch');
+  if (watching) {
+    await watchBuild();
+    return;
+  }
+  await rm(new URL('./build', import.meta.url), {
+    recursive: true,
+    force: true,
+  });
+  await buildClient(false);
+  await buildServer();
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

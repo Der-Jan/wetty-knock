@@ -16,10 +16,7 @@ export const policies =
           baseUri: ["'none'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'", 'data:'],
-          connectSrc: [
-            "'self'",
-            `${req.protocol === 'http' ? 'ws://' : 'wss://'}${req.get('host') ?? ''}`,
-          ],
+          connectSrc: ["'self'", `${req.protocol === 'http' ? 'ws://' : 'wss://'}${req.get('host') ?? ''}`],
         },
       },
       xFrameOptions: allowIframe ? false : { action: 'sameorigin' },

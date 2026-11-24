@@ -17,17 +17,10 @@ describe('CSP-compatible controls', () => {
       'pressDOWN',
     ];
     const dom = new JSDOM(
-      names
-        .map(
-          (name) =>
-            `<a href="#" data-wetty-action="${name}"><span>Control</span></a>`,
-        )
-        .join(''),
+      names.map((name) => `<a href="#" data-wetty-action="${name}"><span>Control</span></a>`).join(''),
     );
     const calls: string[] = [];
-    const target = Object.fromEntries(
-      names.map((name) => [name, () => calls.push(name)]),
-    );
+    const target = Object.fromEntries(names.map((name) => [name, () => calls.push(name)]));
     const browser = {
       ...target,
       pressESC: target.pressESC,
@@ -45,9 +38,7 @@ describe('CSP-compatible controls', () => {
       });
       expect(calls).to.deep.equal(names);
       browser.pressESC = () => calls.push('new terminal');
-      dom.window.document
-        .querySelector<HTMLElement>('[data-wetty-action="pressESC"]')
-        ?.click();
+      dom.window.document.querySelector<HTMLElement>('[data-wetty-action="pressESC"]')?.click();
       expect(calls[calls.length - 1]).to.equal('new terminal');
     } finally {
       dom.window.close();

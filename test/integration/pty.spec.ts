@@ -3,8 +3,8 @@ import { EventEmitter } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from '../../src/server/spawn';
-import type { SpawnOptions } from '../../src/server/spawn';
+import { createServerSession } from '../../src/server/session';
+import { spawn } from '../../src/server/spawn/index';
 import type { Socket } from 'socket.io';
 
 /** Real node-pty coverage without SSH authentication or browser dependencies. */
@@ -20,13 +20,13 @@ describe('Generic PTY integration', function ptySuite() {
 
   async function run(
     args: string[],
-    options: SpawnOptions = {},
+    env?: Record<string, string>,
     stop?: 'disconnect' | 'abort',
   ) {
     const socket = Object.assign(new EventEmitter(), { connected: true });
-    const controller = new AbortController();
+    const session = createServerSession(socket as unknown as Socket);
     let output = '';
-    let exits = 0;
+
     let externalInputs = 0;
     const externalInput = (): void => {
       externalInputs += 1;
@@ -35,34 +35,27 @@ describe('Generic PTY integration', function ptySuite() {
     socket.on('data', (data: string) => {
       output += data;
       if (output.includes('READY')) {
-        if (stop === 'abort') controller.abort();
+        if (stop === 'abort') session.end('disposed');
         if (stop === 'disconnect') {
           socket.connected = false;
           socket.emit('disconnect');
         }
       }
     });
-    const done = new Promise<void>((resolve) => {
-      socket.once('logout', resolve);
-    });
     try {
-      await spawn(socket as unknown as Socket, args, {
-        ...options,
-        signal: controller.signal,
-        onExit: () => {
-          exits += 1;
-        },
-      });
-      await done;
+      await spawn(socket as unknown as Socket, args, session, undefined, env);
+      assert.equal(
+        await session.completion,
+        stop === 'abort' ? 'disposed' : stop === 'disconnect' ? 'socket-disconnect' : 'pty-exit',
+      );
       socket.emit('input', 'after exit');
-      assert.equal(exits, 1);
       assert.equal(externalInputs, 1);
       assert.equal(socket.listenerCount('resize'), 0);
       assert.equal(socket.listenerCount('commit'), 0);
       assert.equal(socket.listenerCount('disconnect'), 0);
       return output;
     } finally {
-      controller.abort();
+      session.end('disposed');
     }
   }
 
@@ -78,10 +71,10 @@ describe('Generic PTY integration', function ptySuite() {
     const inherited = process.env.SSH_AUTH_SOCK;
     const outputs = await Promise.all([
       run(['/bin/sh', script, literal], {
-        env: { PATH: '/usr/bin:/bin', SSH_AUTH_SOCK: '/tmp/agent-one' },
+        PATH: '/usr/bin:/bin', SSH_AUTH_SOCK: '/tmp/agent-one',
       }),
       run(['/bin/sh', script, literal], {
-        env: { PATH: '/usr/bin:/bin', SSH_AUTH_SOCK: '/tmp/agent-two' },
+        PATH: '/usr/bin:/bin', SSH_AUTH_SOCK: '/tmp/agent-two',
       }),
     ]);
     assert.deepEqual(outputs, [
@@ -94,23 +87,19 @@ describe('Generic PTY integration', function ptySuite() {
     it(`terminates a child ignoring hangup on ${stop}`, async () => {
       const script = join(directory, `${stop}.sh`);
       await writeFile(script, 'trap "" HUP\nprintf READY\nexec sleep 30\n');
-      assert.match(await run(['/bin/sh', script], {}, stop), /READY/);
+      assert.match(await run(['/bin/sh', script], undefined, stop), /READY/);
     });
   });
-  it('rejects disconnected or aborted sessions before creating a PTY', async () => {
-    const socket = Object.assign(new EventEmitter(), { connected: false });
-    await assert.rejects(
-      spawn(socket as unknown as Socket, ['/bin/true']),
-      /disconnected/,
-    );
-    const controller = new AbortController();
-    controller.abort();
-    socket.connected = true;
-    await assert.rejects(
-      spawn(socket as unknown as Socket, ['/bin/true'], {
-        signal: controller.signal,
-      }),
-      /abort/i,
-    );
+  it('does not start a PTY after the session ends', async () => {
+    const socket = Object.assign(new EventEmitter(), { connected: true }) as unknown as Socket;
+    const session = createServerSession(socket);
+    const pending = spawn(socket, ['/bin/true'], session, {
+      envVersion: async () => 0,
+      spawnPty: () => {
+        assert.fail('An ended session must not create a PTY');
+      },
+    });
+    socket.emit('disconnect', 'transport close');
+    await pending;
   });
 });

@@ -3,9 +3,9 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fields } from '../../shared/browserAgent.js';
-import { hostKey, hostTarget } from '../../shared/hostKey.js';
-import type { HostTarget } from '../../shared/hostKey.js';
+import { fields } from '../../protocol/browserAgent.js';
+import { hostKey, hostTarget } from '../../protocol/hostKey.js';
+import type { HostTarget } from '../../protocol/hostKey.js';
 import type { Socket } from 'node:net';
 
 export interface BrowserKnownHosts {
@@ -49,24 +49,15 @@ export async function createBrowserKnownHosts(
         if (value.reason !== 'ORDER' && value.reason !== 'HOSTNAME') {
           throw new Error('Invalid host lookup');
         }
-        const offered =
-          value.reason === 'HOSTNAME'
-            ? hostKey(`${String(value.type)} ${String(value.key)}`)
-            : undefined;
+        const offered = value.reason === 'HOSTNAME' ? hostKey(`${String(value.type)} ${String(value.key)}`) : undefined;
         const response = await request(offered);
-        const trusted =
-          response === null && offered === undefined ? null : hostKey(response);
+        const trusted = response === null && offered === undefined ? null : hostKey(response);
         if (offered !== undefined && offered !== trusted) {
           throw new Error('Host key not approved');
         }
-        const name =
-          target.port === 22
-            ? target.host
-            : `[${target.host}]:${String(target.port)}`;
+        const name = target.port === 22 ? target.host : `[${target.host}]:${String(target.port)}`;
         if (!closing && !client.destroyed) {
-          client.end(
-            `${JSON.stringify({ line: trusted ? `${name} ${trusted}` : '' })}\n`,
-          );
+          client.end(`${JSON.stringify({ line: trusted ? `${name} ${trusted}` : '' })}\n`);
         }
       })().catch(() => client.destroy());
     });
@@ -105,15 +96,8 @@ export async function createBrowserKnownHosts(
     await chmod(path, 0o600);
     // tsx runs the source integration tests; production uses the compiled helper.
     const source = import.meta.url.endsWith('.ts');
-    const helper = fileURLToPath(
-      new URL(`./knownHostsHelper.${source ? 'ts' : 'js'}`, import.meta.url),
-    );
-    const args = [
-      process.execPath,
-      ...(source ? ['--import', 'tsx'] : []),
-      helper,
-      path,
-    ];
+    const helper = fileURLToPath(new URL(`./knownHostsHelper.${source ? 'ts' : 'js'}`, import.meta.url));
+    const args = [process.execPath, ...(source ? ['--import', 'tsx'] : []), helper, path];
     const quote = (value: string): string =>
       `"${value.replace(/%/g, '%%').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     return { path, command: `${args.map(quote).join(' ')} %I %t %K`, close };

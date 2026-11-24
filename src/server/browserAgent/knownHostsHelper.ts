@@ -1,6 +1,6 @@
 // Invoked by OpenSSH KnownHostsCommand, not by a shell. No trust is stored here.
 import { createConnection } from 'node:net';
-import { fields } from '../../shared/browserAgent.js';
+import { fields } from '../../protocol/browserAgent.js';
 
 const [path, reason, type, key] = process.argv.slice(2);
 const socket = createConnection(path);

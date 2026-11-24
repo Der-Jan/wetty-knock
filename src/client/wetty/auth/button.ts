@@ -15,7 +15,8 @@ export function setupSshKeyButton(): void {
     if (button.disabled) return;
     dismissNotice?.();
     const terminal = window.wetty_term;
-    const connectionId = terminal?.socket.id;
+    const socket = terminal?.socket;
+    const connectionId = socket?.id;
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
     status.textContent = 'Creating or loading your browser key…';
@@ -28,8 +29,10 @@ export function setupSshKeyButton(): void {
         if (
           terminal &&
           window.wetty_term === terminal &&
-          terminal.socket.connected &&
-          terminal.socket.id === connectionId
+          terminal.paste &&
+          terminal.onData &&
+          socket?.connected &&
+          socket.id === connectionId
         ) {
           // xterm handles bracketed paste; never append Enter or a command.
           terminal.paste(result.publicKey);
@@ -41,23 +44,21 @@ export function setupSshKeyButton(): void {
           const dismiss = (): void => {
             window.clearTimeout(timer);
             input?.dispose();
-            terminal.socket.off('disconnect', dismiss);
+            socket.off('disconnect', dismiss);
             status.textContent = '';
             dismissNotice = undefined;
           };
           dismissNotice = dismiss;
           // Subscribe after paste so the inserted key does not dismiss its notice.
           input = terminal.onData(dismiss);
-          terminal.socket.once('disconnect', dismiss);
+          socket.once('disconnect', dismiss);
           timer = window.setTimeout(dismiss, 5000);
         } else {
-          status.textContent =
-            'Public key printed to the browser console. Copy the ssh-rsa line into authorized_keys.';
+          status.textContent = 'Public key printed to the browser console. Copy the ssh-rsa line into authorized_keys.';
         }
       })
       .catch((error: unknown) => {
-        status.textContent =
-          error instanceof Error ? error.message : 'Unable to prepare SSH key';
+        status.textContent = error instanceof Error ? error.message : 'Unable to prepare SSH key';
       })
       .finally(() => {
         button.disabled = false;

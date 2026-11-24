@@ -1,19 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import {
-  SIGN_TIMEOUT,
-  bytes,
-  fields,
-  publicBlob,
-} from '../../shared/browserAgent.js';
-import { logger } from '../../shared/logger.js';
-import { spawn } from '../spawn.js';
+import { SIGN_TIMEOUT, bytes, fields, publicBlob } from '../../protocol/browserAgent.js';
+import { logger } from '../observability/logger.js';
+import { createServerSession } from '../session.js';
+import { spawn } from '../spawn/index.js';
 import { createBrowserAgent } from './agent.js';
 import { browserSshCommand, browserSshEnv } from './command.js';
 import { forwardedKeys } from './forwardedKeys.js';
 import { createBrowserKnownHosts } from './knownHosts.js';
+import type { SSH } from '../config/types.js';
 import type { BrowserAgent } from './agent.js';
 import type { BrowserKnownHosts } from './knownHosts.js';
-import type { SSH } from '../../shared/interfaces.js';
 import type { Socket } from 'socket.io';
 
 function requestBrowser(
@@ -25,8 +21,7 @@ function requestBrowser(
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     signal.throwIfAborted();
-    const requestId =
-      typeof payload.requestId === 'string' ? payload.requestId : randomUUID();
+    const requestId = typeof payload.requestId === 'string' ? payload.requestId : randomUUID();
     const timer = setTimeout(() => {
       fail(new Error('Browser request timed out'));
     }, timeout);
@@ -49,10 +44,7 @@ function requestBrowser(
       } catch {
         return;
       }
-      if (
-        response.sessionId !== payload.sessionId ||
-        response.requestId !== requestId
-      ) {
+      if (response.sessionId !== payload.sessionId || response.requestId !== requestId) {
         return;
       }
       cleanup();
@@ -65,14 +57,11 @@ function requestBrowser(
 }
 
 /** Setup is opt-in through the configured auth mode, never through URL input. */
-export function browserKeySession(
-  socket: Socket,
-  ssh: SSH,
-  command: string,
-  onClose: () => void,
-): () => Promise<void> {
-  const controller = new AbortController();
-  const { signal } = controller;
+export function browserKeySession(socket: Socket, ssh: SSH, command: string, onClose: () => void): () => Promise<void> {
+  const session = createServerSession(socket, (error) => {
+    logger().warn('Browser key session cleanup failed', { err: error });
+  });
+  const { signal } = session;
   const sessionId = randomUUID();
   let agent: BrowserAgent | undefined;
   let forwardingAgent: BrowserAgent | undefined;
@@ -83,16 +72,11 @@ export function browserKeySession(
   const close = (): Promise<void> => {
     closing ??= (async () => {
       clearTimeout(setupTimer);
-      controller.abort();
+      session.end('disposed');
       socket.off('browser-key:hello', hello);
-      socket.off('disconnect', disconnected);
       socket.disconnect(true);
       onClose();
-      await Promise.all([
-        agent?.close(),
-        forwardingAgent?.close(),
-        knownHosts?.close(),
-      ]);
+      await Promise.all([agent?.close(), forwardingAgent?.close(), knownHosts?.close()]);
     })().catch((error: unknown) => {
       logger().error('Browser key cleanup failed', { err: error });
     });
@@ -105,9 +89,6 @@ export function browserKeySession(
   setupTimer = setTimeout(() => {
     fail('Browser key preparation timed out');
   }, 60000);
-  function disconnected(): void {
-    void close();
-  }
   async function prepare(): Promise<void> {
     if (ssh.knownHosts === 'browser') {
       const created = await createBrowserKnownHosts(ssh, async (key) => {
@@ -128,10 +109,7 @@ export function browserKeySession(
         );
         signal.throwIfAborted();
         if (response.v !== 1 || response.error) {
-          socket.emit(
-            'data',
-            '\r\nHost verification cancelled or unavailable. Authentication stopped.\r\n',
-          );
+          socket.emit('data', '\r\nHost verification cancelled or unavailable. Authentication stopped.\r\n');
           throw new Error('Browser did not approve the SSH host key');
         }
         return response.key;
@@ -171,37 +149,18 @@ export function browserKeySession(
       blob = publicBlob(response.publicKey);
       supportsKeyManagement = response.keyManagement === 1;
       supportsLoginKeys = supportsKeyManagement && response.loginKeys === 1;
-      supportsForwarding =
-        ssh.browserAgentForwarding === true && response.forwarding === true;
+      supportsForwarding = ssh.browserAgentForwarding === true && response.forwarding === true;
       supportsBindings = supportsForwarding && response.sessionBinding === 1;
     } catch (error) {
       if (signal.aborted) return;
-      logger().info(
-        'Browser key unavailable; trying interactive authentication',
-        {
-          reason: error instanceof Error ? error.message : 'Unknown error',
-        },
-      );
-      socket.emit(
-        'data',
-        '\r\nBrowser key unavailable; trying password authentication.\r\n',
-      );
-      await spawn(
-        socket,
-        browserSshCommand(ssh, command, knownHosts?.command),
-        {
-          env: browserSshEnv(),
-          signal,
-          onExit: disconnected,
-        },
-      );
+      logger().info('Browser key unavailable; trying interactive authentication', {
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+      socket.emit('data', '\r\nBrowser key unavailable; trying password authentication.\r\n');
+      await spawn(socket, browserSshCommand(ssh, command, knownHosts?.command), session, undefined, browserSshEnv());
       return;
     }
-    const sign = async (
-      data: Uint8Array,
-      forwarded = false,
-      agentConnectionId?: string,
-    ): Promise<Uint8Array> => {
+    const sign = async (data: Uint8Array, forwarded = false, agentConnectionId?: string): Promise<Uint8Array> => {
       signingRequests += 1;
       if (signingRequests > 32) throw new Error('Too many signing requests');
       const requestId = randomUUID();
@@ -223,11 +182,7 @@ export function browserKeySession(
         ),
       );
       signal.throwIfAborted();
-      if (
-        result.v !== 1 ||
-        result.sessionId !== sessionId ||
-        result.requestId !== requestId
-      ) {
+      if (result.v !== 1 || result.sessionId !== sessionId || result.requestId !== requestId) {
         throw new Error('Invalid browser signing response');
       }
       return bytes(result.signature, 384);
@@ -245,10 +200,7 @@ export function browserKeySession(
           throw new Error('Too many key management requests');
         }
         // Private imports must never travel in cacheable HTTP polling responses.
-        if (
-          operation === 'add' &&
-          (!socket.connected || socket.conn.transport.name !== 'websocket')
-        ) {
+        if (operation === 'add' && (!socket.connected || socket.conn.transport.name !== 'websocket')) {
           throw new Error('Key imports require an active WebSocket');
         }
         const result = fields(
@@ -277,9 +229,7 @@ export function browserKeySession(
       blob,
       ssh.user,
       (data) => sign(data),
-      supportsLoginKeys
-        ? forwardedKeys(blob, (data) => sign(data), manage(false))
-        : undefined,
+      supportsLoginKeys ? forwardedKeys(blob, (data) => sign(data), manage(false)) : undefined,
     );
     if (signal.aborted) {
       await created.close();
@@ -343,17 +293,10 @@ export function browserKeySession(
     }
     await spawn(
       socket,
-      browserSshCommand(
-        ssh,
-        command,
-        knownHosts?.command,
-        forwardingAgent?.path,
-      ),
-      {
-        env: browserSshEnv(agent.path),
-        signal,
-        onExit: disconnected,
-      },
+      browserSshCommand(ssh, command, knownHosts?.command, forwardingAgent?.path),
+      session,
+      undefined,
+      browserSshEnv(agent.path),
     );
     signal.throwIfAborted();
     clearTimeout(setupTimer);
@@ -365,13 +308,11 @@ export function browserKeySession(
         logger().info('Browser key session failed', {
           reason: error instanceof Error ? error.message : 'Unknown error',
         });
-        fail(
-          'Browser key login could not start. Check key storage and server configuration.',
-        );
+        fail('Browser key login could not start. Check key storage and server configuration.');
       }
     });
   }
   socket.once('browser-key:hello', hello);
-  socket.once('disconnect', disconnected);
+  void session.completion.then(close);
   return close;
 }

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { expect } from 'chai';
 import 'mocha';
-import { sshDefault } from '../../shared/defaults';
+import { sshDefault } from '../config/defaults';
 import { browserSshIntegration } from './integration';
 import { browserOriginOptions } from './origin';
 import type { Server, Socket } from 'socket.io';
@@ -27,13 +27,9 @@ describe('Browser SSH server integration', () => {
     });
     const http = new EventEmitter();
     let closed = 0;
-    const sessions = integration.attach(
-      { httpServer: http } as unknown as Server,
-      'login',
-      () => {
-        closed += 1;
-      },
-    );
+    const sessions = integration.attach({ httpServer: http } as unknown as Server, 'login', () => {
+      closed += 1;
+    });
     const client = socket();
     expect(integration.origin).to.equal(undefined);
     expect(browserOriginOptions(integration.origin)).to.deep.equal({});
@@ -54,13 +50,9 @@ describe('Browser SSH server integration', () => {
     });
     const http = new EventEmitter();
     let closed = 0;
-    const sessions = integration.attach(
-      { httpServer: http } as unknown as Server,
-      'login',
-      () => {
-        closed += 1;
-      },
-    );
+    const sessions = integration.attach({ httpServer: http } as unknown as Server, 'login', () => {
+      closed += 1;
+    });
     const first = socket();
     const second = socket();
     expect(sessions.handle(first as unknown as Socket)).to.equal(true);

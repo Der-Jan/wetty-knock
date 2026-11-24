@@ -1,4 +1,4 @@
-import { isDev } from '../../shared/env.js';
+import { isDev } from '../config/environment.js';
 import type { Request, Response, RequestHandler } from 'express';
 
 const jsFiles = isDev ? ['dev.js', 'wetty.js'] : ['wetty.js'];
@@ -10,7 +10,7 @@ const render = (title: string, base: string): string => `<!doctype html>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#1e1e1e">
-    <link rel="icon" type="image/x-icon" href="${base}/client/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="${base}/client/favicon.svg">
     <link rel="manifest" href="${base}/client/manifest.json">
     <title>${title}</title>
     <link rel="stylesheet" href="${base}/client/wetty.css" />
@@ -48,12 +48,7 @@ const render = (title: string, base: string): string => `<!doctype html>
       <iframe class="editor" src="${base}/client/xterm_config/index.html"></iframe>
     </div>
     <div id="terminal"></div>
-    ${jsFiles
-      .map(
-        (file) =>
-          `    <script type="module" src="${base}/client/${file}"></script>`,
-      )
-      .join('\n')}
+    ${jsFiles.map((file) => `    <script type="module" src="${base}/client/${file}"></script>`).join('\n')}
   </body>
 </html>`;
 

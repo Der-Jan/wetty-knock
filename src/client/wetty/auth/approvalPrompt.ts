@@ -4,9 +4,7 @@ export function promptAgentAction(
   action: string,
   signal: AbortSignal,
 ): Promise<boolean> {
-  return promptAgentChoice(heading, message, action, signal).then(
-    (value) => value === true,
-  );
+  return promptAgentChoice(heading, message, action, signal).then((value) => value === true);
 }
 
 export function promptAgentChoice(

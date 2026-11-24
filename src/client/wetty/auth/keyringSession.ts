@@ -1,21 +1,8 @@
-import {
-  bytes,
-  checkUserAuth,
-  equalBytes,
-  fields,
-} from '../../../shared/browserAgent';
-import { checkForwardedAuth } from '../../../shared/forwardedAuth';
-import {
-  keyFingerprint,
-  signatureAlgorithm,
-} from '../../../shared/importedKeys';
+import { bytes, checkUserAuth, equalBytes, fields } from '../../../protocol/browserAgent';
+import { checkForwardedAuth } from '../../../protocol/forwardedAuth';
+import { keyFingerprint, signatureAlgorithm } from '../../../protocol/importedKeys';
 import { promptAgentAction } from './approvalPrompt';
-import {
-  listImportedKeys,
-  prepareImportedKey,
-  saveImportedKey,
-  signImportedKey,
-} from './importedKeys';
+import { listImportedKeys, prepareImportedKey, saveImportedKey, signImportedKey } from './importedKeys';
 import type { ForwardApproval } from './forwardPrompt';
 import type { ForwardedApprovals } from './forwardedApprovals';
 import type { Socket } from 'socket.io-client';
@@ -30,10 +17,7 @@ export interface KeyringContext {
   managedRequests: Set<string>;
   approvals?: ForwardedApprovals;
 }
-export type ImportApproval = (
-  description: string,
-  signal: AbortSignal,
-) => boolean | Promise<boolean>;
+export type ImportApproval = (description: string, signal: AbortSignal) => boolean | Promise<boolean>;
 export const promptKeyImport: ImportApproval = (description, signal) =>
   promptAgentAction(
     'Import SSH key into this browser?',
@@ -78,8 +62,7 @@ export function setupKeyringSession(
         !active ||
         !current() ||
         (forwarded && !active.forwarding) ||
-        (request.forwarded !== undefined &&
-          typeof request.forwarded !== 'boolean') ||
+        (request.forwarded !== undefined && typeof request.forwarded !== 'boolean') ||
         request.v !== 1 ||
         request.sessionId !== active.sessionId ||
         typeof request.requestId !== 'string' ||
@@ -114,12 +97,7 @@ export function setupKeyringSession(
             }
             if (!current()) return;
             const fingerprint = await keyFingerprint(key.blob);
-            if (
-              !(await approveImport(
-                `${key.comment || 'Unnamed key'}\n${fingerprint}`,
-                active.controller.signal,
-              ))
-            ) {
+            if (!(await approveImport(`${key.comment || 'Unnamed key'}\n${fingerprint}`, active.controller.signal))) {
               throw new Error('Import declined');
             }
             active.controller.signal.throwIfAborted();
@@ -136,9 +114,7 @@ export function setupKeyringSession(
           const user = forwarded
             ? checkForwardedAuth(data, blob, algorithm)
             : checkUserAuth(data, active.user, blob, algorithm);
-          const key = (await listImportedKeys()).find((candidate) =>
-            equalBytes(candidate.blob, blob),
-          );
+          const key = (await listImportedKeys()).find((candidate) => equalBytes(candidate.blob, blob));
           if (!key) throw new Error('Unknown imported key');
           const fingerprint = await keyFingerprint(blob);
           if (!current()) return;
@@ -151,13 +127,7 @@ export function setupKeyringSession(
               approveSign,
               `${user} (key ${fingerprint})`,
             );
-          } else if (
-            !(await approveSign(
-              `${user} (key ${fingerprint})`,
-              active.controller.signal,
-              !forwarded,
-            ))
-          ) {
+          } else if (!(await approveSign(`${user} (key ${fingerprint})`, active.controller.signal, !forwarded))) {
             throw new Error('Signing declined');
           }
           active.controller.signal.throwIfAborted();

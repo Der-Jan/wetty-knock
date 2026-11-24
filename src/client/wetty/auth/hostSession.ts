@@ -1,13 +1,10 @@
-import { fields } from '../../../shared/browserAgent';
+import { fields } from '../../../protocol/browserAgent';
 import { promptHostTrust } from './hostPrompt';
 import { browserHostTrust } from './hostTrust';
 import type { HostApproval } from './hostTrust';
 import type { Socket } from 'socket.io-client';
 
-export function setupBrowserHostTrust(
-  socket: Socket,
-  approve: HostApproval = promptHostTrust,
-): void {
+export function setupBrowserHostTrust(socket: Socket, approve: HostApproval = promptHostTrust): void {
   let active: AbortController | undefined;
   let sessionId: string | undefined;
   const clear = (): void => {
@@ -22,11 +19,7 @@ export function setupBrowserHostTrust(
     const connectionId = socket.id;
     const controller = new AbortController();
     const reply = (value: Record<string, unknown>): void => {
-      if (
-        !socket.connected ||
-        socket.id !== connectionId ||
-        controller.signal.aborted
-      ) {
+      if (!socket.connected || socket.id !== connectionId || controller.signal.aborted) {
         return;
       }
       const request = fields(payload);
@@ -65,10 +58,7 @@ export function setupBrowserHostTrust(
       .catch((error: unknown) => {
         try {
           reply({
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Host verification failed',
+            error: error instanceof Error ? error.message : 'Host verification failed',
           });
         } catch {
           /* Malformed envelope: no reply. */

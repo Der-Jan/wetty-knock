@@ -1,27 +1,16 @@
 import { expect } from 'chai';
 import 'mocha';
-import { sshDefault } from '../../shared/defaults';
-import {
-  browserSshCommand,
-  browserSshEnv,
-  validateBrowserSsh,
-} from './command';
+import { sshDefault } from '../config/defaults';
+import { browserSshCommand, browserSshEnv, validateBrowserSsh } from './command';
 
 describe('Browser key SSH command policy', () => {
   it('should prefer the browser key and allow interactive password fallback', () => {
-    const args = browserSshCommand(
-      { ...sshDefault, user: 'fixed', host: 'server.example', port: 2222 },
-      'login',
-    );
+    const args = browserSshCommand({ ...sshDefault, user: 'fixed', host: 'server.example', port: 2222 }, 'login');
     expect(args[0]).to.equal('/usr/bin/ssh');
     expect(args).to.include('PubkeyAuthentication=unbound');
-    expect(args).to.include(
-      'PubkeyAcceptedAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-ed25519',
-    );
+    expect(args).to.include('PubkeyAcceptedAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-ed25519');
     expect(args).to.include('BatchMode=no');
-    expect(args).to.include(
-      'PreferredAuthentications=publickey,password,keyboard-interactive',
-    );
+    expect(args).to.include('PreferredAuthentications=publickey,password,keyboard-interactive');
     expect(args).to.include('PasswordAuthentication=yes');
     expect(args).to.include('KbdInteractiveAuthentication=yes');
     expect(args).to.include('IdentityFile=none');
@@ -33,27 +22,12 @@ describe('Browser key SSH command policy', () => {
 
   it('should forward only the separate socket when explicitly enabled', () => {
     expect(
-      browserSshCommand(
-        { ...sshDefault, browserAgentForwarding: true },
-        'login',
-        undefined,
-        '/tmp/forward-agent',
-      ),
+      browserSshCommand({ ...sshDefault, browserAgentForwarding: true }, 'login', undefined, '/tmp/forward-agent'),
     ).to.include('ForwardAgent=/tmp/forward-agent');
     expect(
-      browserSshCommand(
-        { ...sshDefault, browserAgentForwarding: false },
-        'login',
-        undefined,
-        '/tmp/forward-agent',
-      ),
+      browserSshCommand({ ...sshDefault, browserAgentForwarding: false }, 'login', undefined, '/tmp/forward-agent'),
     ).to.include('ForwardAgent=no');
-    expect(
-      browserSshCommand(
-        { ...sshDefault, browserAgentForwarding: true },
-        'login',
-      ),
-    ).to.include('ForwardAgent=no');
+    expect(browserSshCommand({ ...sshDefault, browserAgentForwarding: true }, 'login')).to.include('ForwardAgent=no');
   });
 
   it('should require a fixed user and known-hosts file', async () => {
@@ -61,10 +35,7 @@ describe('Browser key SSH command policy', () => {
       validateBrowserSsh(sshDefault),
       validateBrowserSsh({ ...sshDefault, user: 'fixed' }),
     ]);
-    expect(results.map((result) => result.status)).to.deep.equal([
-      'rejected',
-      'rejected',
-    ]);
+    expect(results.map((result) => result.status)).to.deep.equal(['rejected', 'rejected']);
   });
 
   it('should require a host helper and disable persistent trust sources in browser mode', () => {

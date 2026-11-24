@@ -30,9 +30,7 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
       reject(new Error('SSH key database is blocked; close other WeTTY tabs'));
     };
     request.onerror = () => {
-      reject(
-        new Error(request.error?.message ?? 'Unable to open SSH key database'),
-      );
+      reject(new Error(request.error?.message ?? 'Unable to open SSH key database'));
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -46,16 +44,9 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
 }
 
 /** Resolve only after commit. A read/write transaction serializes racing tabs. */
-function record(
-  db: IDBDatabase,
-  scope: string,
-  candidate?: StoredKey,
-): Promise<unknown> {
+function record(db: IDBDatabase, scope: string, candidate?: StoredKey): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE,
-      candidate === undefined ? 'readonly' : 'readwrite',
-    );
+    const transaction = db.transaction(STORE, candidate === undefined ? 'readonly' : 'readwrite');
     const store = transaction.objectStore(STORE);
     const request = store.get(scope);
     let result: unknown;
@@ -64,12 +55,7 @@ function record(
       resolve(result);
     };
     transaction.onabort = () => {
-      reject(
-        writeError ??
-          new Error(
-            transaction.error?.message ?? 'SSH key storage transaction aborted',
-          ),
-      );
+      reject(writeError ?? new Error(transaction.error?.message ?? 'SSH key storage transaction aborted'));
     };
     request.onsuccess = () => {
       result = request.result as unknown;
@@ -78,10 +64,7 @@ function record(
         try {
           store.add(candidate, scope);
         } catch (error) {
-          writeError =
-            error instanceof Error
-              ? error
-              : new Error('Unable to persist SSH key');
+          writeError = error instanceof Error ? error : new Error('Unable to persist SSH key');
           transaction.abort();
         }
       }
@@ -89,10 +72,7 @@ function record(
   });
 }
 
-function validKey(
-  value: unknown,
-  type: 'private' | 'public',
-): value is CryptoKey {
+function validKey(value: unknown, type: 'private' | 'public'): value is CryptoKey {
   if (!(value instanceof CryptoKey)) return false;
   const algorithm = value.algorithm as Partial<RsaHashedKeyAlgorithm>;
   return (
@@ -141,11 +121,7 @@ function publicInteger(value: string): Uint8Array<ArrayBuffer> {
   while (offset < bytes.length && bytes[offset] === 0) offset += 1;
   const unsigned = bytes.subarray(offset);
   // SSH mpints are signed: prepend zero for a positive high-bit integer.
-  return sshString(
-    unsigned.length > 0 && unsigned[0] >= 0x80
-      ? new Uint8Array([0, ...unsigned])
-      : unsigned,
-  );
+  return sshString(unsigned.length > 0 && unsigned[0] >= 0x80 ? new Uint8Array([0, ...unsigned]) : unsigned);
 }
 
 async function exportPublicKey(key: CryptoKey): Promise<string> {
@@ -166,21 +142,12 @@ async function exportPublicKey(key: CryptoKey): Promise<string> {
  * it is a storage namespace, not an authentication or authorization mechanism.
  * No key handle is returned until persistence and local verification succeed.
  */
-export async function loadSshKey(
-  scope: string,
-  factory: IDBFactory = globalThis.indexedDB,
-): Promise<BrowserSshKey> {
+export async function loadSshKey(scope: string, factory: IDBFactory = globalThis.indexedDB): Promise<BrowserSshKey> {
   if (scope.trim() === '' || scope.length > 1024) {
     throw new Error('An explicit SSH key storage scope is required');
   }
-  if (
-    typeof crypto === 'undefined' ||
-    typeof crypto.subtle === 'undefined' ||
-    typeof factory === 'undefined'
-  ) {
-    throw new Error(
-      'SSH keys require WebCrypto and IndexedDB in a secure context',
-    );
+  if (typeof crypto === 'undefined' || typeof crypto.subtle === 'undefined' || typeof factory === 'undefined') {
+    throw new Error('SSH keys require WebCrypto and IndexedDB in a secure context');
   }
   const db = await openDatabase(factory);
   let stored: StoredKey;
@@ -210,21 +177,9 @@ export async function loadSshKey(
   const key: BrowserSshKey = {
     privateKeyExtractable: stored.privateKey.extractable,
     publicKey: () => exportPublicKey(stored.publicKey),
-    sign: async (data) =>
-      new Uint8Array(
-        await crypto.subtle.sign(
-          ALGORITHM,
-          stored.privateKey,
-          new Uint8Array(data),
-        ),
-      ),
+    sign: async (data) => new Uint8Array(await crypto.subtle.sign(ALGORITHM, stored.privateKey, new Uint8Array(data))),
     verify: (data, signature) =>
-      crypto.subtle.verify(
-        ALGORITHM,
-        stored.publicKey,
-        new Uint8Array(signature),
-        new Uint8Array(data),
-      ),
+      crypto.subtle.verify(ALGORITHM, stored.publicKey, new Uint8Array(signature), new Uint8Array(data)),
   };
   const challenge = crypto.getRandomValues(new Uint8Array(32));
   if (!(await key.verify(challenge, await key.sign(challenge)))) {

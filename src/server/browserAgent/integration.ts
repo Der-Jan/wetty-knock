@@ -1,6 +1,6 @@
 import { validateBrowserSsh } from './command.js';
 import { browserKeySession } from './session.js';
-import type { SSH } from '../../shared/interfaces.js';
+import type { SSH } from '../config/types.js';
 import type { Server, Socket } from 'socket.io';
 
 interface BrowserSessions {

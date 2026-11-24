@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { expect } from 'chai';
 import 'mocha';
-import { sshString } from '../../shared/browserAgent';
+import { sshString } from '../../protocol/browserAgent';
 import { createBrowserKnownHosts } from './knownHosts';
 import type { BrowserKnownHosts } from './knownHosts';
 
@@ -28,39 +28,26 @@ describe('Browser KnownHostsCommand bridge', () => {
     await helper?.close();
   });
   it('should return only the browser-approved key for the fixed destination', async () => {
-    helper = await createBrowserKnownHosts(
-      { host: 'server', port: 2222 },
-      (offered) => Promise.resolve(offered ?? null),
+    helper = await createBrowserKnownHosts({ host: 'server', port: 2222 }, (offered) =>
+      Promise.resolve(offered ?? null),
     );
-    expect(
-      JSON.parse(await exchange(helper.path, '{"reason":"ORDER"}\n')),
-    ).to.deep.equal({ line: '' });
+    expect(JSON.parse(await exchange(helper.path, '{"reason":"ORDER"}\n'))).to.deep.equal({ line: '' });
     expect(JSON.parse(await exchange(helper.path, verify))).to.deep.equal({
       line: `[server]:2222 ${key}`,
     });
   });
   it('should reject unapproved keys, malformed and oversized input', async () => {
-    helper = await createBrowserKnownHosts({ host: 'server', port: 22 }, () =>
-      Promise.resolve(null),
-    );
+    helper = await createBrowserKnownHosts({ host: 'server', port: 22 }, () => Promise.resolve(null));
     expect(await exchange(helper.path, verify)).to.equal('');
     expect(await exchange(helper.path, '{"reason":"ADDRESS"}\n')).to.equal('');
     expect(await exchange(helper.path, 'x'.repeat(10001))).to.equal('');
   });
   it('should isolate session approvals and remove private sockets on cleanup', async () => {
-    helper = await createBrowserKnownHosts({ host: 'server', port: 22 }, () =>
-      Promise.resolve(key),
-    );
-    const other = await createBrowserKnownHosts(
-      { host: 'server', port: 22 },
-      () => Promise.resolve(null),
-    );
+    helper = await createBrowserKnownHosts({ host: 'server', port: 22 }, () => Promise.resolve(key));
+    const other = await createBrowserKnownHosts({ host: 'server', port: 22 }, () => Promise.resolve(null));
     try {
       expect((await stat(helper.path)).mode % 0o1000).to.equal(0o600);
-      expect(
-        (await stat(helper.path.slice(0, helper.path.lastIndexOf('/')))).mode %
-          0o1000,
-      ).to.equal(0o700);
+      expect((await stat(helper.path.slice(0, helper.path.lastIndexOf('/')))).mode % 0o1000).to.equal(0o700);
       expect(await exchange(other.path, verify)).to.equal('');
       expect(await exchange(helper.path, verify)).to.contain(key);
     } finally {
@@ -68,8 +55,6 @@ describe('Browser KnownHostsCommand bridge', () => {
     }
     await helper.close();
     await helper.close();
-    expect((await Promise.allSettled([stat(helper.path)]))[0].status).to.equal(
-      'rejected',
-    );
+    expect((await Promise.allSettled([stat(helper.path)]))[0].status).to.equal('rejected');
   });
 });

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
-import { sshString } from '../../../shared/browserAgent';
-import { hostFingerprint, hostKey } from '../../../shared/hostKey';
+import { sshString } from '../../../protocol/browserAgent';
+import { hostFingerprint, hostKey } from '../../../protocol/hostKey';
 import { browserHostTrust } from './hostTrust';
 import type { HostApproval } from './hostTrust';
 
@@ -18,10 +18,7 @@ describe('Browser host trust', () => {
     factory = new IDBFactory();
     controller = new AbortController();
   });
-  const lookup = (
-    offered: string | undefined,
-    approve = accept,
-  ): Promise<string | null> =>
+  const lookup = (offered: string | undefined, approve = accept): Promise<string | null> =>
     browserHostTrust(target, offered, approve, controller.signal, factory);
 
   it('should persist an approved public host key and silently match it on reconnect', async () => {
@@ -59,27 +56,9 @@ describe('Browser host trust', () => {
   it('should isolate hostnames, ports and browser profiles', async () => {
     await lookup(key(1));
     const values = await Promise.all([
-      browserHostTrust(
-        { ...target, port: 2222 },
-        undefined,
-        accept,
-        controller.signal,
-        factory,
-      ),
-      browserHostTrust(
-        { ...target, host: 'other.example' },
-        undefined,
-        accept,
-        controller.signal,
-        factory,
-      ),
-      browserHostTrust(
-        target,
-        undefined,
-        accept,
-        controller.signal,
-        new IDBFactory(),
-      ),
+      browserHostTrust({ ...target, port: 2222 }, undefined, accept, controller.signal, factory),
+      browserHostTrust({ ...target, host: 'other.example' }, undefined, accept, controller.signal, factory),
+      browserHostTrust(target, undefined, accept, controller.signal, new IDBFactory()),
     ]);
     expect(values).to.deep.equal([null, null, null]);
   });
@@ -107,22 +86,14 @@ describe('Browser host trust', () => {
   it('should refuse malformed host keys before prompting', async () => {
     let prompts = 0;
     const results = await Promise.allSettled(
-      [
-        `@cert-authority * ${key(1)}`,
-        `${key(1)}\nother`,
-        `ssh-rsa ${key(1).split(' ')[1]}`,
-      ].map((offered) =>
+      [`@cert-authority * ${key(1)}`, `${key(1)}\nother`, `ssh-rsa ${key(1).split(' ')[1]}`].map((offered) =>
         lookup(offered, () => {
           prompts += 1;
           return true;
         }),
       ),
     );
-    expect(results.map((result) => result.status)).to.deep.equal([
-      'rejected',
-      'rejected',
-      'rejected',
-    ]);
+    expect(results.map((result) => result.status)).to.deep.equal(['rejected', 'rejected', 'rejected']);
     expect(prompts).to.equal(0);
   });
   it('should fail closed when IndexedDB is unavailable', async () => {
@@ -137,8 +108,6 @@ describe('Browser host trust', () => {
   });
   it('should calculate the standard SHA-256 host fingerprint', async () => {
     expect(hostKey(key(1))).to.equal(key(1));
-    expect(await hostFingerprint(key(1))).to.match(
-      /^SHA256:[A-Za-z0-9+/]{43}$/,
-    );
+    expect(await hostFingerprint(key(1))).to.match(/^SHA256:[A-Za-z0-9+/]{43}$/);
   });
 });

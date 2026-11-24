@@ -3,7 +3,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
-import { fields, sshString } from '../../../shared/browserAgent';
+import { fields, sshString } from '../../../protocol/browserAgent';
 import { listImportedKeys } from './importedKeys';
 import { setupKeyringSession } from './keyringSession';
 import type { ImportApproval, KeyringContext } from './keyringSession';
@@ -56,9 +56,7 @@ describe('Imported-key session authorization', () => {
     active?.controller.abort();
     globalThis.indexedDB = original;
   });
-  async function request(
-    payload: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  async function request(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     return new Promise((resolve) => {
       client.once('browser-key:result', (result) => {
         resolve(fields(result));
@@ -74,10 +72,7 @@ describe('Imported-key session authorization', () => {
   it('should reject unprepared forwarding and mismatched session IDs', async () => {
     assert(active);
     active.forwarding = false;
-    assert.equal(
-      (await request({ operation: 'add', packet: packet() })).error,
-      'KEY_OPERATION_FAILED',
-    );
+    assert.equal((await request({ operation: 'add', packet: packet() })).error, 'KEY_OPERATION_FAILED');
     active.forwarding = true;
     assert.equal(
       (
@@ -94,10 +89,7 @@ describe('Imported-key session authorization', () => {
   it('should list login keys without forwarding but refuse login imports', async () => {
     assert(active);
     active.forwarding = false;
-    assert.deepEqual(
-      (await request({ operation: 'list', forwarded: false })).identities,
-      [],
-    );
+    assert.deepEqual((await request({ operation: 'list', forwarded: false })).identities, []);
     assert.equal(
       (
         await request({
@@ -162,9 +154,6 @@ describe('Imported-key session authorization', () => {
       } as unknown as IDBFactory;
       return true;
     };
-    assert.equal(
-      (await request({ operation: 'add', packet: packet() })).error,
-      'KEY_OPERATION_FAILED',
-    );
+    assert.equal((await request({ operation: 'add', packet: packet() })).error, 'KEY_OPERATION_FAILED');
   });
 });

@@ -1,11 +1,14 @@
-import { Socket } from 'socket.io';
 import { login } from '../login.js';
-import { escapeShell } from '../shared/shell.js';
+import { escapeShell } from './shell.js';
+import type { ClientToServerEvents, ServerToClientEvents } from '../../protocol/socket-events.js';
+import type { ServerSession } from '../session.js';
+import type { Socket } from 'socket.io';
 
 export async function address(
-  socket: Socket,
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
   user: string,
   host: string,
+  session: ServerSession,
 ): Promise<string> {
   // Check request-header for username
   const {
@@ -25,7 +28,7 @@ export async function address(
     } else if (user) {
       username = user;
     } else {
-      username = await login(socket);
+      username = await login(socket, session);
     }
   }
   return `${escapeShell(username)}@${host}`;

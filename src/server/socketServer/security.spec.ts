@@ -11,9 +11,7 @@ describe('Script security policy', () => {
     app.use(policies(false));
     app.get('/', html('', 'WeTTY'));
     app.get('/client/xterm_config/index.html', async (_req, res) => {
-      res
-        .type('html')
-        .send(await readFile('src/assets/xterm_config/index.html', 'utf8'));
+      res.type('html').send(await readFile('src/assets/xterm_config/index.html', 'utf8'));
     });
     const server = app.listen(0, '127.0.0.1');
     try {
@@ -26,9 +24,7 @@ describe('Script security policy', () => {
       }
       await Promise.all(
         ['/', '/client/xterm_config/index.html'].map(async (path) => {
-          const response = await fetch(
-            `http://127.0.0.1:${String(address.port)}${path}`,
-          );
+          const response = await fetch(`http://127.0.0.1:${String(address.port)}${path}`);
           const csp = response.headers.get('content-security-policy') ?? '';
           expect(csp).to.include("script-src 'self' 'wasm-unsafe-eval';");
           expect(csp).to.include("script-src-attr 'none';");

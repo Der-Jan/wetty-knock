@@ -13,93 +13,43 @@ import { verifyPrompt } from './wetty/disconnect/verify';
 import { FileDownloader } from './wetty/download';
 import { FlowControlClient } from './wetty/flowcontrol';
 import { mobileKeyboard } from './wetty/mobile';
+import { Notifier } from './wetty/notifications';
+import './wetty/serviceWorker';
 import { socket } from './wetty/socket';
-import { terminal, Term } from './wetty/term';
-
-if ('serviceWorker' in navigator) {
-  const scripts = Array.from(document.getElementsByTagName('script'));
-  const own = scripts.find((s) => s.src.endsWith('/wetty.js'));
-  if (own) {
-    const base = own.src.replace(/\/client\/wetty\.js$/, '');
-    void navigator.serviceWorker.register(`${base}/sw.js`, {
-      scope: `${base}/`,
-    });
-  }
-}
+import { terminal } from './wetty/term/index';
+import { createSessionController } from './wetty/term/session';
 
 // Setup for fontawesome
 library.add(faCogs);
 library.add(faKeyboard);
 dom.watch();
 
-function onResize(term: Term): () => void {
-  return function resize() {
-    term.resizeTerm();
-  };
+function beforeUnloadHandler(event: BeforeUnloadEvent): void {
+  verifyPrompt(event);
 }
 
-socket.on('connect', () => {
-  const term = terminal(socket);
-  if (term === undefined) return;
+// Shared across reconnects, so listeners and the AudioContext are not
+// recreated for every new terminal.
+const notifier = new Notifier();
 
-  if (overlay !== null) overlay.style.display = 'none';
-  window.addEventListener('beforeunload', verifyPrompt, false);
-  const resizeWindow = onResize(term);
-  window.addEventListener('resize', resizeWindow, false);
-
-  term.resizeTerm();
-  term.focus();
-  mobileKeyboard();
-  const fileDownloader = new FileDownloader();
-  const fcClient = new FlowControlClient();
-
-  term.onData((data: string) => {
-    socket.emit('input', data);
-  });
-  term.onBinary((data: string) => {
-    socket.emit('input', data, true);
-  });
-  term.onResize((size: { cols: number; rows: number }) => {
-    socket.emit('resize', size);
-  });
-  socket
-    .on('data', (data: string) => {
-      const remainingData = fileDownloader.buffer(data);
-      const downloadLength = data.length - remainingData.length;
-      if (downloadLength && fcClient.needsCommit(downloadLength)) {
-        socket.emit('commit', fcClient.ackBytes);
-      }
-      if (remainingData) {
-        if (fcClient.needsCommit(remainingData.length)) {
-          term.write(remainingData, () =>
-            socket.emit('commit', fcClient.ackBytes),
-          );
-        } else {
-          term.write(remainingData);
-        }
-      }
-    })
-    .on('login', () => {
-      term.writeln('');
-      term.resizeTerm();
-    })
-    .on('logout', disconnect)
-    .on('disconnect', disconnect)
-    .on('error', (err: string | null) => {
-      if (err) disconnect(err);
-    });
-  socket.once('disconnect', () => {
-    window.removeEventListener('resize', resizeWindow, false);
-    window.onresize = null;
-    term.dispose();
-    window.wetty_term = undefined;
-    socket
-      .off('data')
-      .off('login')
-      .off('logout', disconnect)
-      .off('disconnect', disconnect)
-      .off('error');
-  });
+createSessionController({
+  socket,
+  windowTarget: window,
+  beforeUnloadHandler,
+  createTerminal: () => terminal(socket, notifier),
+  createFileDownloader: () => new FileDownloader(),
+  createFlowControl: () => new FlowControlClient(),
+  enableMobileKeyboard: mobileKeyboard,
+  showConnected: () => {
+    if (overlay !== null) overlay.style.display = 'none';
+  },
+  showDisconnected: disconnect,
+  setTerminalReference: (term) => {
+    window.wetty_term = term;
+  },
+  clearTerminalReference: (term) => {
+    if (window.wetty_term === term) window.wetty_term = undefined;
+  },
 });
 
 socket.on('connect_error', (error: Error) => {

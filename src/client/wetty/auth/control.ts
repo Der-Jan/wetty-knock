@@ -4,10 +4,8 @@ export function createSshKeyControl(): {
   status: HTMLParagraphElement;
 } {
   const existing = document.getElementById('ssh-key-tools');
-  const existingButton =
-    existing?.querySelector<HTMLButtonElement>('#ssh-key-create');
-  const existingStatus =
-    existing?.querySelector<HTMLParagraphElement>('#ssh-key-status');
+  const existingButton = existing?.querySelector<HTMLButtonElement>('#ssh-key-create');
+  const existingStatus = existing?.querySelector<HTMLParagraphElement>('#ssh-key-status');
   if (existingButton && existingStatus) {
     return { button: existingButton, status: existingStatus };
   }

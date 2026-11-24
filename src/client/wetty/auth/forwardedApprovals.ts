@@ -1,9 +1,9 @@
-import { equalBytes, bytes } from '../../../shared/browserAgent';
-import { forwardedAuth } from '../../../shared/forwardedAuth';
-import { base64url } from '../../../shared/importedKeys';
-import { verifySessionBinding } from '../../../shared/sessionBinding';
+import { equalBytes, bytes } from '../../../protocol/browserAgent';
+import { forwardedAuth } from '../../../protocol/forwardedAuth';
+import { base64url } from '../../../protocol/importedKeys';
+import { verifySessionBinding } from '../../../protocol/sessionBinding';
+import type { SessionBinding } from '../../../protocol/sessionBinding';
 import type { ForwardApproval, ForwardDestination } from './forwardPrompt';
-import type { SessionBinding } from '../../../shared/sessionBinding';
 
 interface Connection {
   bindings: SessionBinding[];
@@ -35,13 +35,7 @@ export class ForwardedApprovals {
 
   private connection(id: unknown): Connection {
     this.signal.throwIfAborted();
-    if (
-      this.stopped ||
-      typeof id !== 'string' ||
-      !id.length ||
-      id.length > 64 ||
-      this.closed.has(id)
-    ) {
+    if (this.stopped || typeof id !== 'string' || !id.length || id.length > 64 || this.closed.has(id)) {
       throw new Error('Invalid agent connection');
     }
     let state = this.connections.get(id);
@@ -81,8 +75,7 @@ export class ForwardedApprovals {
       if (
         state.pending ||
         state.bindings.length >= 16 ||
-        (state.bindings.length > 0 &&
-          !state.bindings[state.bindings.length - 1].forwarded)
+        (state.bindings.length > 0 && !state.bindings[state.bindings.length - 1].forwarded)
       ) {
         throw new Error('Binding chain closed or full');
       }
@@ -91,14 +84,9 @@ export class ForwardedApprovals {
       state.controller.signal.throwIfAborted();
       this.signal.throwIfAborted();
       if (state.failed) throw new Error('Binding failed');
-      const previous = state.bindings.find((value) =>
-        equalBytes(value.session, binding.session),
-      );
+      const previous = state.bindings.find((value) => equalBytes(value.session, binding.session));
       if (previous) {
-        if (
-          !equalBytes(previous.host, binding.host) ||
-          previous.forwarded !== binding.forwarded
-        ) {
+        if (!equalBytes(previous.host, binding.host) || previous.forwarded !== binding.forwarded) {
           throw new Error('Inconsistent duplicate binding');
         }
       } else state.bindings.push(binding);
@@ -134,9 +122,7 @@ export class ForwardedApprovals {
     const signal = state?.controller.signal ?? this.signal;
     if (state?.pending) throw new Error('Binding in progress');
     const bindings = state?.bindings ?? [];
-    const destination = bindings.length
-      ? bindings[bindings.length - 1]
-      : undefined;
+    const destination = bindings.length ? bindings[bindings.length - 1] : undefined;
     let details: ForwardDestination | undefined;
     let grant: string | undefined;
     if (destination) {
@@ -149,10 +135,7 @@ export class ForwardedApprovals {
       }
       const fingerprints = await Promise.all(
         bindings.map(async (binding) => {
-          const digest = await crypto.subtle.digest(
-            'SHA-256',
-            bytes(binding.host),
-          );
+          const digest = await crypto.subtle.digest('SHA-256', bytes(binding.host));
           return `SHA256:${btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/=+$/, '')}`;
         }),
       );
@@ -164,22 +147,13 @@ export class ForwardedApprovals {
         canRemember: auth.host !== undefined,
       };
       if (details.canRemember) {
-        grant = JSON.stringify([
-          base64url(key),
-          auth.user,
-          bindings.map((binding) => base64url(binding.host)),
-        ]);
+        grant = JSON.stringify([base64url(key), auth.user, bindings.map((binding) => base64url(binding.host))]);
       }
     }
     signal.throwIfAborted();
     this.signal.throwIfAborted();
     if (grant && this.grants.has(grant)) return;
-    const result = await approve(
-      description ?? auth.user,
-      signal,
-      false,
-      details,
-    );
+    const result = await approve(description ?? auth.user, signal, false, details);
     signal.throwIfAborted();
     this.signal.throwIfAborted();
     if (result !== true && result !== 'session') {
