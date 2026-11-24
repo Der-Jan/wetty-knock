@@ -1,5 +1,5 @@
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faKey } from '@fortawesome/free-solid-svg-icons';
+import { faCopy, faKey, faTrashCan } from '@fortawesome/free-solid-svg-icons';
 import { setupSshKeyButton } from './button';
 import { setupBrowserHostTrust } from './hostSession';
 import { setupBrowserSigner } from './session';
@@ -11,7 +11,7 @@ const initialized = new WeakSet<Socket>();
 export function setupBrowserSsh(socket: Socket): void {
   if (initialized.has(socket)) return;
   initialized.add(socket);
-  library.add(faKey);
+  library.add(faCopy, faKey, faTrashCan);
   setupSshKeyButton();
   setupBrowserSigner(socket);
   setupBrowserHostTrust(socket);

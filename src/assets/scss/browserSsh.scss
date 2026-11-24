@@ -1,6 +1,9 @@
 @use './panel';
 @use './variables';
 
+$key-top: 6rem;
+$key-right: 1rem;
+
 // Aligned icon controls in the top-right corner.
 #options > .toggler,
 #functions > a.toggler,
@@ -34,8 +37,8 @@
 // Temporary browser key enrollment, also available above the disconnect overlay.
 #ssh-key-tools {
   position: fixed;
-  top: 6em;
-  right: 1em;
+  top: $key-top;
+  right: $key-right;
   z-index: 101;
   width: 32px;
   font-family: system-ui, sans-serif;
@@ -112,10 +115,10 @@
   @include panel.surface;
   box-sizing: border-box;
   position: fixed;
-  inset: min(3.5rem, 8vh) 1rem auto auto;
+  inset: $key-top $key-right auto auto;
   margin: 0;
   width: min(520px, calc(100vw - 2rem));
-  max-height: calc(100dvh - min(3.5rem, 8vh) - 1rem);
+  max-height: calc(100dvh - $key-top - 1rem);
   padding: 1rem 1.25rem;
   color-scheme: dark;
   color: #e0e0e0;
@@ -213,6 +216,24 @@
     }
     & + button {
       margin-left: 0.5em;
+    }
+  }
+  #ssh-key-create {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+  }
+  .ssh-key-actions {
+    display: flex;
+    flex: none;
+    gap: 0.25rem;
+    button {
+      display: grid;
+      place-items: center;
+      width: 2rem;
+      height: 2rem;
+      padding: 0;
+      margin: 0;
     }
   }
   fieldset > button {

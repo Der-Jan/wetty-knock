@@ -26,7 +26,7 @@ async function keyEntries() {
   return { entries, generated };
 }
 
-function openManager(): void {
+function openManager(opener: HTMLButtonElement): void {
   const dialog = document.createElement('dialog');
   dialog.className = 'ssh-key-manager';
   const heading = document.createElement('h2');
@@ -52,6 +52,16 @@ function openManager(): void {
           list.disabled = false;
         });
     };
+    return button;
+  }
+  function iconAction(label: string, glyph: string, run: () => Promise<void>): HTMLButtonElement {
+    const button = action(label, run);
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${glyph}`;
+    icon.setAttribute('aria-hidden', 'true');
+    button.replaceChildren(icon);
+    button.title = label;
+    button.setAttribute('aria-label', label);
     return button;
   }
   async function refresh(): Promise<void> {
@@ -83,11 +93,10 @@ function openManager(): void {
             list.disabled = false;
           });
       };
-      row.append(
-        name,
-        details,
-        label,
-        action('Copy public key', async () => {
+      const actions = document.createElement('div');
+      actions.className = 'ssh-key-actions';
+      actions.append(
+        iconAction('Copy public key', 'copy', async () => {
           try {
             await window.navigator.clipboard.writeText(entry.publicKey);
             status.textContent = 'Public key copied.';
@@ -101,7 +110,7 @@ function openManager(): void {
             field.select();
           }
         }),
-        action('Remove', async () => {
+        iconAction('Remove', 'trash-can', async () => {
           if (
             // eslint-disable-next-line no-alert -- Confirm permanent removal of this specific private key.
             !window.confirm(
@@ -115,6 +124,9 @@ function openManager(): void {
           status.textContent = 'Key removed from this browser.';
         }),
       );
+      const title = document.createElement('header');
+      title.append(name, actions);
+      row.append(title, details, label);
       list.append(row);
     }
     if (!generated) {
@@ -127,12 +139,9 @@ function openManager(): void {
     }
   }
   const header = document.createElement('header');
-  header.append(
-    heading,
-    action('Close', () => {
-      dialog.close();
-    }),
-  );
+  const toolbar = opener.parentElement;
+  header.append(heading, opener);
+  opener.setAttribute('aria-expanded', 'true');
   dialog.append(header, list, status);
   dialog.setAttribute('closedby', 'any');
   if (!('closedBy' in Object.getPrototypeOf(dialog))) {
@@ -156,7 +165,10 @@ function openManager(): void {
   dialog.addEventListener(
     'close',
     () => {
+      toolbar?.prepend(opener);
+      opener.setAttribute('aria-expanded', 'false');
       dialog.remove();
+      opener.focus();
     },
     { once: true },
   );
@@ -171,5 +183,11 @@ export function setupSshKeyButton(): void {
   const { button } = createSshKeyControl();
   if (boundButtons.has(button)) return;
   boundButtons.add(button);
-  button.addEventListener('click', openManager);
+  button.setAttribute('aria-haspopup', 'dialog');
+  button.setAttribute('aria-expanded', 'false');
+  button.addEventListener('click', () => {
+    const dialog = button.closest('dialog');
+    if (dialog) dialog.close();
+    else openManager(button);
+  });
 }

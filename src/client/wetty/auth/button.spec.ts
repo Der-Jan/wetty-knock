@@ -33,7 +33,9 @@ describe('SSH key manager', () => {
         });
       }
       const find = (label: string) =>
-        Array.from(document.querySelectorAll<HTMLButtonElement>('dialog button')).find((b) => b.textContent === label);
+        Array.from(document.querySelectorAll<HTMLButtonElement>('dialog button')).find(
+          (b) => (b.getAttribute('aria-label') ?? b.textContent) === label,
+        );
       await waitFor(() => !!find('Create browser key'));
       expect(await generatedKeyInfo()).to.equal(undefined);
       find('Create browser key')?.click();
