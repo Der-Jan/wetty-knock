@@ -1,9 +1,10 @@
 import { BROWSER_KEY_SCOPE, bytes, checkUserAuth, fields, publicBlob } from '../../../protocol/browserAgent';
 import { checkForwardedAuth } from '../../../protocol/forwardedAuth';
+import { keyFingerprint } from '../../../protocol/importedKeys';
 import { promptForwardSign } from './forwardPrompt';
 import { ForwardedApprovals } from './forwardedApprovals';
 import { setupKeyringSession } from './keyringSession';
-import { loadSshKey } from './keys';
+import { generatedKeyInfo, loadSshKey } from './keys';
 import type { ForwardApproval } from './forwardPrompt';
 import type { ImportApproval } from './keyringSession';
 import type { BrowserSshKey } from './keys';
@@ -20,6 +21,7 @@ export function setupBrowserSigner(
         sessionId: string;
         user: string;
         key: BrowserSshKey;
+        publicKey: string;
         blob: Uint8Array;
         seen: Set<string>;
         managedRequests: Set<string>;
@@ -80,6 +82,7 @@ export function setupBrowserSigner(
         sessionId,
         user: target.user,
         key,
+        publicKey,
         blob: publicBlob(publicKey),
         seen: new Set(),
         managedRequests: new Set(),
@@ -194,10 +197,27 @@ export function setupBrowserSigner(
         throw new Error('Forwarding unavailable');
       }
       const user = forwarded ? checkForwardedAuth(data, active.blob) : checkUserAuth(data, active.user, active.blob);
-      if (forwarded) {
+      const policy = await generatedKeyInfo();
+      if (policy?.publicKey !== active.publicKey || !current()) throw new Error('Key unavailable');
+      if (forwarded || policy.sensitive) {
+        if (active.prompting) throw new Error('Approval pending');
         active.prompting = true;
         try {
-          await active.approvals.approve(request.agentConnectionId, data, active.blob, 'rsa-sha2-256', approve, user);
+          const label = policy.sensitive ? `${user} (key ${await keyFingerprint(active.blob)})` : user;
+          if (forwarded) {
+            await active.approvals.approve(
+              request.agentConnectionId,
+              data,
+              active.blob,
+              'rsa-sha2-256',
+              approve,
+              label,
+              policy.sensitive,
+              policy.revision,
+            );
+          } else if ((await approve(label, active.controller.signal, true, undefined, true)) !== true) {
+            throw new Error('Signing declined');
+          }
         } finally {
           active.prompting = false;
         }
@@ -205,6 +225,10 @@ export function setupBrowserSigner(
       active.controller.signal.throwIfAborted();
       if (!current()) return;
       const signature = await active.key.sign(data);
+      const latest = await generatedKeyInfo();
+      if (latest?.publicKey !== active.publicKey || latest.revision !== policy.revision) {
+        throw new Error('Key changed');
+      }
       if (forwarded) active.approvals.assertCurrent(request.agentConnectionId);
       if (socket.connected && context === active) {
         ack({

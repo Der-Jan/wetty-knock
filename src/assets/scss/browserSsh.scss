@@ -100,3 +100,37 @@
     margin-top: 1.5em;
   }
 }
+
+.ssh-host-trust.ssh-sensitive {
+  border: 3px solid #ffc266;
+  h2 {
+    color: #ffc266;
+  }
+}
+.ssh-key-manager {
+  fieldset {
+    border: 0;
+    padding: 0;
+  }
+  section {
+    padding-bottom: 1em;
+    border-bottom: 1px solid #777;
+  }
+  code {
+    overflow-wrap: anywhere;
+  }
+  label {
+    display: block;
+    margin: 0.8em 0;
+  }
+  input[type='checkbox'] {
+    display: inline;
+    width: auto;
+  }
+  button {
+    margin-right: 0.5em;
+  }
+  textarea {
+    width: 100%;
+  }
+}

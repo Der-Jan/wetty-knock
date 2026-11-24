@@ -13,11 +13,12 @@ export function promptAgentChoice(
   action: string,
   signal: AbortSignal,
   remember = false,
+  sensitive = false,
 ): Promise<boolean | 'session'> {
   signal.throwIfAborted();
   return new Promise<boolean | 'session'>((resolve) => {
     const dialog = document.createElement('dialog');
-    dialog.className = 'ssh-host-trust';
+    dialog.className = sensitive ? 'ssh-host-trust ssh-sensitive' : 'ssh-host-trust';
     const title = document.createElement('h2');
     title.id = 'ssh-agent-approval-title';
     title.textContent = heading;

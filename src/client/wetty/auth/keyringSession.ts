@@ -126,13 +126,25 @@ export function setupKeyringSession(
               algorithm,
               approveSign,
               `${user} (key ${fingerprint})`,
+              key.sensitive,
+              key.revision,
             );
-          } else if (!(await approveSign(`${user} (key ${fingerprint})`, active.controller.signal, !forwarded))) {
+          } else if (
+            (await approveSign(
+              `${user} (key ${fingerprint})`,
+              active.controller.signal,
+              !forwarded,
+              undefined,
+              key.sensitive,
+            )) !== true
+          ) {
             throw new Error('Signing declined');
           }
           active.controller.signal.throwIfAborted();
           if (!current()) return;
           const signature = await signImportedKey(key, algorithm, data);
+          const latest = (await listImportedKeys()).find((candidate) => equalBytes(candidate.blob, blob));
+          if (!latest || latest.revision !== key.revision) throw new Error('Key changed');
           if (forwarded) {
             active.approvals?.assertCurrent(request.agentConnectionId);
           }

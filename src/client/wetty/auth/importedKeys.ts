@@ -6,9 +6,11 @@ import {
   publicIdentity,
   webAlgorithm,
 } from '../../../protocol/importedKeys';
+import { editStoredKey } from './keyPolicy';
 import type { SigningAlgorithm } from '../../../protocol/importedKeys';
+import type { KeyPolicy } from './keyPolicy';
 
-export interface ImportedKey {
+export interface ImportedKey extends KeyPolicy {
   blob: Uint8Array;
   comment: string;
   keys: Partial<Record<SigningAlgorithm, CryptoKey>>;
@@ -64,6 +66,8 @@ function validate(value: unknown): ImportedKey {
   return {
     blob: record.blob,
     comment: record.comment,
+    sensitive: record.sensitive === true,
+    revision: typeof record.revision === 'string' ? record.revision : undefined,
     keys,
   };
 }
@@ -129,7 +133,7 @@ export async function saveImportedKey(key: ImportedKey, signal: AbortSignal): Pr
         const id = base64url(key.blob);
         if (request.result.length >= MAX_IMPORTED_KEYS && !request.result.includes(id)) {
           tx.abort();
-        } else store.put(key, id);
+        } else if (!request.result.includes(id)) store.add({ ...key, revision: crypto.randomUUID() }, id);
       };
       tx.oncomplete = () => {
         signal.removeEventListener('abort', aborted);
@@ -152,4 +156,12 @@ export async function signImportedKey(
   const privateKey = key.keys[algorithm];
   if (!privateKey) throw new Error('Unsupported signature algorithm');
   return new Uint8Array(await crypto.subtle.sign(webAlgorithm(algorithm), privateKey, new Uint8Array(data)));
+}
+
+export async function editImportedKey(
+  blob: Uint8Array,
+  revision: string | undefined,
+  action: boolean | 'remove',
+): Promise<void> {
+  return editStoredKey(await database(), base64url(blob), revision, action);
 }

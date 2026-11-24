@@ -114,6 +114,8 @@ export class ForwardedApprovals {
     algorithm: string,
     approve: ForwardApproval,
     description?: string,
+    sensitive = false,
+    revision?: string,
   ): Promise<void> {
     this.signal.throwIfAborted();
     if (this.stopped) throw new Error('Forwarding stopped');
@@ -144,19 +146,24 @@ export class ForwardedApprovals {
         forwardingHostFingerprints: fingerprints.slice(0, -1),
         // A forwarding grant must bind the signature itself to the destination.
         // Plain publickey authentication remains available with one-use consent.
-        canRemember: auth.host !== undefined,
+        canRemember: !sensitive && auth.host !== undefined,
       };
       if (details.canRemember) {
-        grant = JSON.stringify([base64url(key), auth.user, bindings.map((binding) => base64url(binding.host))]);
+        grant = JSON.stringify([
+          base64url(key),
+          revision,
+          auth.user,
+          bindings.map((binding) => base64url(binding.host)),
+        ]);
       }
     }
     signal.throwIfAborted();
     this.signal.throwIfAborted();
     if (grant && this.grants.has(grant)) return;
-    const result = await approve(description ?? auth.user, signal, false, details);
+    const result = await approve(description ?? auth.user, signal, false, details, sensitive);
     signal.throwIfAborted();
     this.signal.throwIfAborted();
-    if (result !== true && result !== 'session') {
+    if (result !== true && (sensitive || result !== 'session')) {
       throw new Error('Signing declined');
     }
     if (result === 'session' && grant && this.grants.size < 128) {

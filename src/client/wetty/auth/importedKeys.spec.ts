@@ -3,7 +3,13 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
 import { fields, sshString } from '../../../protocol/browserAgent';
-import { listImportedKeys, prepareImportedKey, saveImportedKey, signImportedKey } from './importedKeys';
+import {
+  editImportedKey,
+  listImportedKeys,
+  prepareImportedKey,
+  saveImportedKey,
+  signImportedKey,
+} from './importedKeys';
 
 function fixture(rsa = false) {
   const pair = rsa ? generateKeyPairSync('rsa', { modulusLength: 2048 }) : generateKeyPairSync('ed25519');
@@ -89,6 +95,19 @@ describe('Imported SSH key storage', function importedSuite() {
       saveImportedKey(key, new AbortController().signal),
     ]);
     assert.equal((await listImportedKeys()).length, 1);
+  });
+  it('preserves sensitivity on reimport and rejects stale removal after a policy change', async () => {
+    const key = await prepareImportedKey(fixture().packet);
+    const { signal } = new AbortController();
+    await saveImportedKey(key, signal);
+    const [before] = await listImportedKeys();
+    await editImportedKey(key.blob, before.revision, true);
+    await saveImportedKey(key, signal);
+    const [after] = await listImportedKeys();
+    assert.equal(after.sensitive, true);
+    await assert.rejects(editImportedKey(key.blob, before.revision, 'remove'));
+    await editImportedKey(key.blob, after.revision, 'remove');
+    assert.deepEqual(await listImportedKeys(), []);
   });
   it('should enforce the persistent key limit across concurrent transactions', async () => {
     const keys = await Promise.all(Array.from({ length: 9 }, () => prepareImportedKey(fixture().packet)));

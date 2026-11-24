@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { IDBFactory } from 'fake-indexeddb';
 import 'mocha';
 import { fields, publicBlob, sshString } from '../../../protocol/browserAgent';
+import { editGeneratedKey, generatedKeyInfo } from './keys';
 import { setupBrowserSigner } from './session';
 import type { ForwardApproval } from './forwardPrompt';
 import type { Socket } from 'socket.io-client';
@@ -78,6 +79,32 @@ describe('Browser signing session', function signerSuite() {
       .to.have.property('signature')
       .with.length(384);
     expect(await message('browser-key:sign', request)).to.have.property('error');
+  });
+  it('enforces sensitivity and removal during an active login session', async () => {
+    const blob = await prepare(true);
+    const sign = (id: string, forwarded = false) =>
+      message('browser-key:sign', {
+        v: 1,
+        sessionId: 'current',
+        requestId: id,
+        forwarded,
+        algorithm: 'rsa-sha2-256',
+        data: data(blob),
+      });
+    await editGeneratedKey((await generatedKeyInfo())?.revision, true);
+    let prompts = 0;
+    approve = (_user, _signal, _initial, _destination, sensitive) => {
+      expect(sensitive).to.equal(true);
+      prompts += 1;
+      return true;
+    };
+    expect(await sign('first')).to.have.property('signature');
+    expect(await sign('second', true)).to.have.property('signature');
+    expect(prompts).to.equal(2);
+    approve = () => 'session';
+    expect(await sign('third', true)).to.have.property('error');
+    await editGeneratedKey((await generatedKeyInfo())?.revision, 'remove');
+    expect(await sign('fourth')).to.have.property('error');
   });
   it('should refuse different usernames, algorithms and arbitrary data', async () => {
     const blob = await prepare();
@@ -159,9 +186,14 @@ describe('Browser signing session', function signerSuite() {
     let accept: (value: boolean) => void = () => {
       throw new Error('No pending approval');
     };
+    let started!: () => void;
+    const prompted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     let pendingSignal: AbortSignal | undefined;
     approve = (_user, signal) => {
       pendingSignal = signal;
+      started();
       return new Promise<boolean>((resolve) => {
         accept = resolve;
       });
@@ -176,6 +208,7 @@ describe('Browser signing session', function signerSuite() {
       algorithm: 'rsa-sha2-256',
       data: data(blob),
     });
+    await prompted;
     socket.emit('disconnect');
     expect(pendingSignal?.aborted).to.equal(true);
     accept(true);

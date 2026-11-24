@@ -79,6 +79,26 @@ describe('Forwarded signing approval', () => {
     buttons[2].click();
     expect(await result).to.equal('session');
   });
+  it('identifies sensitive credentials and offers only single-use consent', async () => {
+    const result = promptForwardSign(
+      'user',
+      new AbortController().signal,
+      false,
+      {
+        hostFingerprint: 'SHA256:host',
+        forwardingHostFingerprints: [],
+        canRemember: true,
+      },
+      true,
+    );
+    expect(document.querySelector('.ssh-sensitive h2')?.textContent).to.equal('Sensitive SSH key');
+    expect(Array.from(document.querySelectorAll('button'), (button) => button.textContent)).to.deep.equal([
+      'Deny',
+      'Allow once',
+    ]);
+    document.querySelectorAll('button')[1].click();
+    expect(await result).to.equal(true);
+  });
   it('keeps non-hostbound authentication on one-use approval', async () => {
     const result = promptForwardSign('git', new AbortController().signal, false, {
       hostFingerprint: 'SHA256:host',

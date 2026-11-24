@@ -37,6 +37,23 @@ describe('In-memory forwarded SSH grants', () => {
     );
   });
 
+  it('requires fresh consent when a previously approved host uses a sensitive key', async () => {
+    const host = bindingHost();
+    const auth = boundAuth(key, host.host);
+    await approvals.bind('bound', host.packet());
+    await approvals.approve('bound', auth, key, 'rsa-sha2-256', () => 'session');
+    let prompts = 0;
+    const once: ForwardApproval = (_user, _signal, _initial, destination, sensitive) => {
+      assert.equal(sensitive, true);
+      assert.equal(destination?.canRemember, false);
+      prompts += 1;
+      return true;
+    };
+    await approvals.approve('bound', auth, key, 'rsa-sha2-256', once, 'git', true);
+    await approvals.approve('bound', auth, key, 'rsa-sha2-256', once, 'git', true);
+    assert.equal(prompts, 2);
+  });
+
   it('scopes grants to the exact key, user, host and complete forwarding path', async () => {
     const host = bindingHost();
     const other = bindingHost();

@@ -12,13 +12,14 @@ disconnected. Forwarding need not be enabled to use imported keys for login. See
 [agent key imports](browser-agent-forwarding.md#importing-keys-with-ssh-add) for
 storage, approval and server authentication-attempt limits.
 
-Click the key icon while your SSH terminal is ready to paste the public key at
-the cursor, without pressing Enter. For example, open `~/.ssh/authorized_keys`
-in an editor, enter insert mode on a new line, click the icon, then save the
-file yourself. The button does not execute a command or edit the file for you.
-It also prints the public key to the browser console, which remains available
-when disconnected. If the terminal reconnects while the key is loading, no key
-is pasted into the replacement session.
+Open the key icon and choose **Copy public key** beside the desired fingerprint. Paste the public line into the
+remote account's `~/.ssh/authorized_keys`. The manager also works while disconnected. If there is no generated
+key, choose **Create browser key** to enroll one.
+
+Select **Sensitive — approve every use** to require a separate, amber **Sensitive SSH key** prompt for each
+authentication signature, including the initial login. **Remove** deletes the private key from this browser.
+Existing SSH logins continue. To revoke access on a server, remove its authorized key there as well. Browser-key
+mode generates a fresh identity on the next connection if the generated key has been removed.
 
 After building, start WeTTY with your actual values:
 
@@ -184,7 +185,7 @@ original certificate design's verified web-principal prerequisite still applies
 before adding Vault issuance.
 
 The current key scope is the temporary `development-diagnostic-v1` record,
-shared with the create/show button and developer diagnostic. It is not yet
+shared with the key manager and developer diagnostic. It is not yet
 scoped by a web account. Served JavaScript, the backend and other processes
 running under the backend's Unix UID remain trusted. Non-extractability does not
 stop same-origin code from invoking signing, nor guarantee hardware storage.
@@ -195,7 +196,7 @@ stop same-origin code from invoking signing, nor guarantee hardware storage.
   the SSH server requires an additional authentication step.
 - `Permission denied (publickey)` means the offered key was not accepted,
   signing failed, or SSH server policy denied the account. Confirm that the
-  button prints the same public key installed in that account's
+  manager shows the same public key installed in that account's
   `authorized_keys`.
 - Host-key verification failure requires reviewing the browser trust prompt or,
   in managed-file mode, correcting the trusted known-hosts entry.

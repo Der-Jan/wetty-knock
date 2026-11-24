@@ -1,9 +1,13 @@
+import { BROWSER_KEY_SCOPE } from '../../../protocol/browserAgent';
+import { editStoredKey } from './keyPolicy';
+import type { KeyPolicy } from './keyPolicy';
+
 const DATABASE = 'wetty-ssh-keys';
 const STORE = 'keys';
 const ALGORITHM = 'RSASSA-PKCS1-v1_5';
 const MODULUS_LENGTH = 3072;
 
-interface StoredKey {
+interface StoredKey extends KeyPolicy {
   version: 1;
   privateKey: CryptoKey;
   publicKey: CryptoKey;
@@ -104,6 +108,8 @@ function validateRecord(value: unknown): StoredKey {
     version: 1,
     privateKey: value.privateKey,
     publicKey: value.publicKey,
+    sensitive: 'sensitive' in value && value.sensitive === true,
+    revision: 'revision' in value && typeof value.revision === 'string' ? value.revision : undefined,
   };
 }
 
@@ -164,7 +170,7 @@ export async function loadSshKey(scope: string, factory: IDBFactory = globalThis
         false,
         ['sign', 'verify'],
       );
-      await record(db, scope, { version: 1, ...pair });
+      await record(db, scope, { version: 1, revision: crypto.randomUUID(), ...pair });
       // Read the committed structured clone, including the winner of any race.
       stored = validateRecord(await record(db, scope));
     } else {
@@ -186,4 +192,20 @@ export async function loadSshKey(scope: string, factory: IDBFactory = globalThis
     throw new Error('Stored SSH key pair failed local verification');
   }
   return Object.freeze(key);
+}
+
+export async function generatedKeyInfo() {
+  const db = await openDatabase(indexedDB);
+  try {
+    const value = await record(db, BROWSER_KEY_SCOPE);
+    if (!value) return undefined;
+    const key = validateRecord(value);
+    return { publicKey: await exportPublicKey(key.publicKey), revision: key.revision, sensitive: key.sensitive };
+  } finally {
+    db.close();
+  }
+}
+
+export async function editGeneratedKey(revision: string | undefined, action: boolean | 'remove'): Promise<void> {
+  return editStoredKey(await openDatabase(indexedDB), BROWSER_KEY_SCOPE, revision, action);
 }

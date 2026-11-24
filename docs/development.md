@@ -42,12 +42,8 @@ enums, and avoid mutable module globals for per-session state.
 
 ## Browser SSH key management (Milestone 1)
 
-The temporary **Create / show SSH key** button appears in the top-right corner
-in both normal and development builds, including when disconnected. Open the
-browser developer console, click the button, and copy the printed `ssh-rsa ...`
-line into the remote account's `~/.ssh/authorized_keys`. Repeated clicks show
-the same persisted key. Only the public key is printed; the private key stays in
-IndexedDB and remains non-extractable.
+Open the key icon to manage browser SSH keys, including while disconnected. Choose **Copy public key** to enroll a key
+in the remote account's `~/.ssh/authorized_keys`. Private keys remain in IndexedDB.
 
 To log in with the enrolled key, enable
 [browser-key mode](browser-key-login.md). The button currently shares the

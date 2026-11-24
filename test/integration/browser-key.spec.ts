@@ -11,7 +11,7 @@ import { Server } from 'socket.io';
 import { io as connect } from 'socket.io-client';
 import { setupBrowserHostTrust } from '../../src/client/wetty/auth/hostSession';
 import { browserHostTrust } from '../../src/client/wetty/auth/hostTrust';
-import { loadSshKey } from '../../src/client/wetty/auth/keys';
+import { editGeneratedKey, generatedKeyInfo, loadSshKey } from '../../src/client/wetty/auth/keys';
 import { setupBrowserSigner } from '../../src/client/wetty/auth/session';
 import { validateBrowserSsh } from '../../src/server/browserAgent/command';
 import { browserSshIntegration } from '../../src/server/browserAgent/integration';
@@ -265,6 +265,28 @@ describe('browser-key real OpenSSH login', function integrationSuite() {
     assert.match(result.output, /FORWARDED_LOGIN_OK/);
     assert.equal(approvals, 1);
     assert.equal(result.signs, 2);
+  });
+
+  it('requires separate approvals for initial and forwarded use of a sensitive key', async () => {
+    await editGeneratedKey((await generatedKeyInfo())?.revision, true);
+    try {
+      const prompts: boolean[] = [];
+      const result = await login(
+        onwardCommand(),
+        { ...ssh, browserAgentForwarding: true },
+        false, false, () => true, false,
+        (_user, _signal, initial, destination, sensitive) => {
+          assert.equal(sensitive, true);
+          assert.ok(!destination?.canRemember);
+          prompts.push(initial === true);
+          return true;
+        },
+      );
+      assert.match(result.output, /FORWARDED_LOGIN_OK/);
+      assert.deepEqual(prompts, [true, false]);
+    } finally {
+      await editGeneratedKey((await generatedKeyInfo())?.revision, false);
+    }
   });
 
   it('denies onward login when browser approval is refused', async () => {

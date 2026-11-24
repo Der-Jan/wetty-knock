@@ -15,7 +15,7 @@ export function createSshKeyControl(): {
   const button = document.createElement('button');
   button.id = 'ssh-key-create';
   button.type = 'button';
-  button.title = 'Create / paste SSH public key';
+  button.title = 'Manage SSH keys';
   button.setAttribute('aria-label', button.title);
   button.setAttribute('aria-describedby', 'ssh-key-status');
   const icon = document.createElement('i');

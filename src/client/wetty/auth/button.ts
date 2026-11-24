@@ -1,68 +1,156 @@
+import { BROWSER_KEY_SCOPE, publicBlob } from '../../../protocol/browserAgent';
+import { keyFingerprint, publicIdentity } from '../../../protocol/importedKeys';
 import { createSshKeyControl } from './control';
-import { diagnoseSshKey } from './diagnostics';
+import { editImportedKey, listImportedKeys } from './importedKeys';
+import { editGeneratedKey, generatedKeyInfo, loadSshKey } from './keys';
 
 const boundButtons = new WeakSet<HTMLButtonElement>();
 
-/** Bind once at page startup, independently of terminal connection/reconnection. */
+async function keyEntries() {
+  const [generated, imported] = await Promise.all([generatedKeyInfo(), listImportedKeys()]);
+  const entries = imported.map((key) => ({
+    name: key.comment || 'Imported key',
+    blob: key.blob,
+    sensitive: key.sensitive,
+    publicKey: (publicIdentity(key.blob).rsa ? 'ssh-rsa ' : 'ssh-ed25519 ') + btoa(String.fromCharCode(...key.blob)),
+    edit: (action: boolean | 'remove') => editImportedKey(key.blob, key.revision, action),
+  }));
+  if (generated) {
+    entries.unshift({
+      ...generated,
+      name: 'Browser-generated key',
+      blob: publicBlob(generated.publicKey),
+      edit: (action) => editGeneratedKey(generated.revision, action),
+    });
+  }
+  return { entries, generated };
+}
+
+function openManager(): void {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'ssh-host-trust ssh-key-manager';
+  const heading = document.createElement('h2');
+  heading.id = 'ssh-key-manager-title';
+  heading.textContent = 'SSH keys';
+  dialog.setAttribute('aria-labelledby', heading.id);
+  const list = document.createElement('fieldset');
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  function action(label: string, run: () => Promise<void> | void): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.onclick = () => {
+      list.disabled = true;
+      status.textContent = '';
+      void Promise.resolve()
+        .then(run)
+        .catch((error: unknown) => {
+          status.textContent = error instanceof Error ? error.message : 'Key management failed';
+        })
+        .finally(() => {
+          list.disabled = false;
+        });
+    };
+    return button;
+  }
+  async function refresh(): Promise<void> {
+    const { entries, generated } = await keyEntries();
+    list.replaceChildren();
+    const fingerprints = await Promise.all(entries.map((entry) => keyFingerprint(entry.blob)));
+    for (const [index, entry] of entries.entries()) {
+      const row = document.createElement('section');
+      const name = document.createElement('h3');
+      name.textContent = entry.name;
+      const fingerprint = fingerprints[index];
+      const details = document.createElement('code');
+      details.textContent = fingerprint;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = entry.sensitive === true;
+      const label = document.createElement('label');
+      label.append(checkbox, ' Sensitive — approve every use');
+      checkbox.onchange = () => {
+        list.disabled = true;
+        void entry
+          .edit(checkbox.checked)
+          .then(refresh)
+          .catch(() => {
+            checkbox.checked = entry.sensitive === true;
+            status.textContent = 'Could not change this key. Reopen the manager to refresh.';
+          })
+          .finally(() => {
+            list.disabled = false;
+          });
+      };
+      row.append(
+        name,
+        details,
+        label,
+        action('Copy public key', async () => {
+          try {
+            await window.navigator.clipboard.writeText(entry.publicKey);
+            status.textContent = 'Public key copied.';
+          } catch {
+            const field = document.createElement('textarea');
+            field.readOnly = true;
+            field.setAttribute('aria-label', 'Public key to copy');
+            field.value = entry.publicKey;
+            status.replaceChildren(field);
+            field.focus();
+            field.select();
+          }
+        }),
+        action('Remove', async () => {
+          if (
+            // eslint-disable-next-line no-alert -- Confirm permanent removal of this specific private key.
+            !window.confirm(
+              `Remove ${entry.name} (${fingerprint}) from this browser? Remote authorized_keys entries are kept.`,
+            )
+          ) {
+            return;
+          }
+          await entry.edit('remove');
+          await refresh();
+          status.textContent = 'Key removed from this browser.';
+        }),
+      );
+      list.append(row);
+    }
+    if (!generated) {
+      list.append(
+        action('Create browser key', async () => {
+          await loadSshKey(BROWSER_KEY_SCOPE);
+          await refresh();
+        }),
+      );
+    }
+  }
+  dialog.append(
+    heading,
+    list,
+    status,
+    action('Close', () => {
+      dialog.close();
+    }),
+  );
+  dialog.addEventListener(
+    'close',
+    () => {
+      dialog.remove();
+    },
+    { once: true },
+  );
+  document.body.append(dialog);
+  dialog.showModal();
+  void refresh().catch(() => {
+    status.textContent = 'Unable to load browser SSH keys.';
+  });
+}
+
 export function setupSshKeyButton(): void {
-  const { button, status } = createSshKeyControl();
+  const { button } = createSshKeyControl();
   if (boundButtons.has(button)) return;
   boundButtons.add(button);
-
-  let dismissNotice: (() => void) | undefined;
-
-  button.addEventListener('click', () => {
-    if (button.disabled) return;
-    dismissNotice?.();
-    const terminal = window.wetty_term;
-    const socket = terminal?.socket;
-    const connectionId = socket?.id;
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    status.textContent = 'Creating or loading your browser key…';
-
-    void diagnoseSshKey()
-      .then((result) => {
-        if (!result.signingAndVerificationSucceed) {
-          throw new Error('SSH key verification failed');
-        }
-        if (
-          terminal &&
-          window.wetty_term === terminal &&
-          terminal.paste &&
-          terminal.onData &&
-          socket?.connected &&
-          socket.id === connectionId
-        ) {
-          // xterm handles bracketed paste; never append Enter or a command.
-          terminal.paste(result.publicKey);
-          terminal.focus();
-          status.textContent =
-            'Public key pasted into the terminal without Enter. Add it as a line in ~/.ssh/authorized_keys.';
-          let input: { dispose(): void } | undefined;
-          let timer: number | undefined;
-          const dismiss = (): void => {
-            window.clearTimeout(timer);
-            input?.dispose();
-            socket.off('disconnect', dismiss);
-            status.textContent = '';
-            dismissNotice = undefined;
-          };
-          dismissNotice = dismiss;
-          // Subscribe after paste so the inserted key does not dismiss its notice.
-          input = terminal.onData(dismiss);
-          socket.once('disconnect', dismiss);
-          timer = window.setTimeout(dismiss, 5000);
-        } else {
-          status.textContent = 'Public key printed to the browser console. Copy the ssh-rsa line into authorized_keys.';
-        }
-      })
-      .catch((error: unknown) => {
-        status.textContent = error instanceof Error ? error.message : 'Unable to prepare SSH key';
-      })
-      .finally(() => {
-        button.disabled = false;
-        button.removeAttribute('aria-busy');
-      });
-  });
+  button.addEventListener('click', openManager);
 }
