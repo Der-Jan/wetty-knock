@@ -2,8 +2,8 @@
 
 **WeTTY Knock** — *Sensitive SSH keys knock before use.*
 
-[![Documentation](https://img.shields.io/badge/documentation-yes-brightgreen.svg)](https://github.com/butlerx/wetty/tree/main/docs)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/butlerx/wetty/blob/main/LICENSE)
+[![Documentation](https://img.shields.io/badge/documentation-yes-brightgreen.svg)](docs/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 WeTTY Knock adds browser-managed SSH keys and per-use approval for sensitive keys.
 
@@ -29,14 +29,14 @@ For the Docker setup used by this fork, see the [deployment notes](containers/lo
 
 ## FAQ
 
-Check out the [docs](https://github.com/butlerx/wetty/tree/main/docs)
+Check out the [docs](docs/)
 
-- [Running as daemon](https://butlerx.github.io/wetty/service)
-- [HTTPS Support](https://butlerx.github.io/wetty/https)
-  - [Using NGINX](https://butlerx.github.io/wetty/nginx)
-  - [Using Apache](https://butlerx.github.io/wetty/apache)
-- [Automatic Login](https://butlerx.github.io/wetty/auto-login)
-- [Downloading Files](https://butlerx.github.io/wetty/downloading-files)
+- [Running as daemon](docs/service.md)
+- [HTTPS Support](docs/https.md)
+  - [Using NGINX](docs/nginx.md)
+  - [Using Apache](docs/apache.md)
+- [Automatic Login](docs/auto-login.md)
+- [Downloading Files](docs/downloading-files.md)
 
 ### What browsers are supported?
 
@@ -53,6 +53,6 @@ Give a ⭐️ if this project helped you!
 ## 📝 License
 
 Copyright © 2019 [Cian Butler <butlerx@notthe.cloud>](https://github.com/butlerx).<br /> This project is
-[MIT](https://github.com/butlerx/wetty/blob/main/LICENSE) licensed.
+[MIT](LICENSE) licensed.
 
 ---

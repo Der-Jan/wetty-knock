@@ -11,7 +11,7 @@ The following confs assume you want to serve WeTTY on the url `https://example.c
 `--base /wetty --allowed-origin https://example.com` on the same server. The allowed origin is required and does not
 include `/wetty`.
 
-For a more detailed look see the [nginx.conf](https://github.com/butlerx/wetty/blob/main/conf/nginx.template) used for
+For a more detailed look see the [nginx.conf](https://github.com/Der-Jan/wetty-knock/blob/main/conf/nginx.template) used for
 testing
 
 Put the following configuration in your nginx conf:

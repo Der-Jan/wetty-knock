@@ -5,8 +5,8 @@ WeTTY can be installed from source or from npm.
 To install from source run:
 
 ```bash
-$ git clone https://github.com/butlerx/wetty.git
-$ cd wetty
+$ git clone https://github.com/Der-Jan/wetty-knock.git
+$ cd wetty-knock
 $ pnpm install
 $ pnpm build
 ```

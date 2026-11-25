@@ -2,7 +2,7 @@
   "name": "wetty",
   "version": "4.2.1",
   "description": "WeTTY = Web + TTY. Terminal access in browser over http/https",
-  "homepage": "https://github.com/butlerx/wetty",
+  "homepage": "https://github.com/Der-Jan/wetty-knock",
   "license": "MIT",
   "type": "module",
   "bin": "./build/main.js",
@@ -28,11 +28,8 @@
     "provenance": true,
     "access": "public"
   },
-  "repository": "git://github.com/butlerx/wetty.git",
+  "repository": "git://github.com/Der-Jan/wetty-knock.git",
   "author": "Cian Butler <butlerx@notthe.cloud> (cianbutler.ie)",
-  "bugs": {
-    "url": "https://github.com/butlerx/wetty/issues"
-  },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
