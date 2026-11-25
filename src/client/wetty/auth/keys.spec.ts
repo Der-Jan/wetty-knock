@@ -109,10 +109,9 @@ describe('Browser SSH keys', function keysSuite() {
     expect(pair.privateKey.usages).to.deep.equal(['sign']);
     expect(key.privateKeyExtractable).to.be.false;
     expect(pair.publicKey.extractable).to.be.true;
-    for (const format of ['jwk', 'pkcs8'] as const) {
-      const error = await failure(crypto.subtle.exportKey(format, pair.privateKey));
-      expect(error.name).to.be.oneOf(['InvalidAccessError', 'InvalidAccessException']);
-    }
+    const accessErrors = ['InvalidAccessError', 'InvalidAccessException'];
+    expect((await failure(crypto.subtle.exportKey('jwk', pair.privateKey))).name).to.be.oneOf(accessErrors);
+    expect((await failure(crypto.subtle.exportKey('pkcs8', pair.privateKey))).name).to.be.oneOf(accessErrors);
   });
 
   it('should export valid OpenSSH RSA and sign exact binary bytes with SHA-256', async () => {
