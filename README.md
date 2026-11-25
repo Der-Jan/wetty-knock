@@ -28,6 +28,11 @@ Open WeTTY Knock in your browser and click the key icon to manage your SSH keys.
 The [example Compose file](docker-compose.yml) uses `ghcr.io/der-jan/wetty-knock:latest`. Each successful build on
 `main` also publishes a `sha-<full-commit-sha>` tag for pinning a deployment.
 
+WeTTY Knock versions follow `<upstream-version>-knock.<revision>`. For example, `4.2.1-knock.1` is the first fork
+release based on WeTTY 4.2.1. To release, update the package version, wait for CI on `main` to publish the commit image,
+then push a matching `v<version>` Git tag. The release workflow tags that same multi-platform image with the package
+version.
+
 For the Docker setup used by this fork, see the [deployment notes](containers/local-deployment/README.md).
 
 ## FAQ
