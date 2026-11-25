@@ -8,7 +8,7 @@ version: '2'
 
 services:
   wetty:
-    image: wettyoss/wetty
+    image: ghcr.io/der-jan/wetty-knock:latest
     command:
       - --base=/
       - --ssh-host=ssh.example.com

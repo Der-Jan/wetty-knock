@@ -5,12 +5,6 @@ on:
       push:
         type: boolean
         default: false
-      tag:
-        type: string
-        default: ""
-    secrets:
-      DOCKERHUB_USERNAME: {}
-      DOCKERHUB_TOKEN: {}
 permissions:
   contents: read
   packages: write
@@ -18,7 +12,7 @@ jobs:
   docker:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -44,19 +38,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: |
-            wettyoss/wetty
-            ghcr.io/butlerx/wetty
-          flavor: |
-            latest=true
+          images: ghcr.io/der-jan/wetty-knock
           tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}},value=${{ inputs.tag }}
-            type=sha
+            type=raw,value=latest
+            type=sha,format=long
       - name: Set platform pair
         id: platform
         env:
@@ -67,18 +52,12 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Login to DockerHub
-        if: inputs.push
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Login to GHCR
         if: inputs.push
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate build
         if: ${{ !inputs.push }}
@@ -89,7 +68,6 @@ jobs:
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/butlerx/wetty:latest
       - name: Build and push by digest
         if: inputs.push
         id: build
@@ -99,9 +77,7 @@ jobs:
           file: containers/wetty/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: "type=image,\"name=wettyoss/wetty,ghcr.io/butlerx/wetty\",push-by-digest=true,name-canonical=true,push=true"
-          cache-from: type=registry,ref=ghcr.io/butlerx/wetty:latest
-          cache-to: type=inline
+          outputs: type=image,name=ghcr.io/der-jan/wetty-knock,push-by-digest=true,name-canonical=true,push=true
       - name: Export digest
         if: inputs.push
         env:
@@ -136,31 +112,17 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: |
-            wettyoss/wetty
-            ghcr.io/butlerx/wetty
-          flavor: |
-            latest=true
+          images: ghcr.io/der-jan/wetty-knock
           tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}},value=${{ inputs.tag }}
-            type=sha
+            type=raw,value=latest
+            type=sha,format=long
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Login to DockerHub
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Login to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create manifest lists
         working-directory: ${{ runner.temp }}/digests
@@ -176,7 +138,7 @@ jobs:
           done
           sources=()
           for digest in *; do
-            sources+=("ghcr.io/butlerx/wetty@sha256:$digest")
+            sources+=("ghcr.io/der-jan/wetty-knock@sha256:$digest")
           done
           docker buildx imagetools create \
             "${manifest_args[@]}" "${sources[@]}"

@@ -1,6 +1,6 @@
 # WeTTY = Web + TTY.
 
-**WeTTY Knock** — *Sensitive SSH keys knock before use.*
+**WeTTY Knock** — _Sensitive SSH keys knock before use._
 
 [![Documentation](https://img.shields.io/badge/documentation-yes-brightgreen.svg)](docs/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -24,6 +24,9 @@ WeTTY Knock adds browser-managed SSH keys and per-use approval for sensitive key
 
 Open WeTTY Knock in your browser and click the key icon to manage your SSH keys. See the
 [browser key login guide](docs/browser-key-login.md) for enrollment and per-use approval.
+
+The [example Compose file](docker-compose.yml) uses `ghcr.io/der-jan/wetty-knock:latest`. Each successful build on
+`main` also publishes a `sha-<full-commit-sha>` tag for pinning a deployment.
 
 For the Docker setup used by this fork, see the [deployment notes](containers/local-deployment/README.md).
 
@@ -52,7 +55,7 @@ Give a ⭐️ if this project helped you!
 
 ## 📝 License
 
-Copyright © 2019 [Cian Butler <butlerx@notthe.cloud>](https://github.com/butlerx).<br /> This project is
-[MIT](LICENSE) licensed.
+Copyright © 2019 [Cian Butler <butlerx@notthe.cloud>](https://github.com/butlerx).<br /> This project is [MIT](LICENSE)
+licensed.
 
 ---

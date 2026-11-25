@@ -6,7 +6,7 @@ http:
     wetty-stable:
       rule: Host(`wetty.jans.space`)
       entryPoints:
-      - websecure
+        - websecure
       priority: 100
       service: wetty-stable
       tls:
@@ -15,4 +15,4 @@ http:
     wetty-stable:
       loadBalancer:
         servers:
-        - url: http://wetty:3000
+          - url: http://wetty:3000

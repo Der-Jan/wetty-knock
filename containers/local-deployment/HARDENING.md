@@ -1,15 +1,12 @@
 # WeTTY deployment hardening
 
-This directory repackages the existing `wetty.local` application image into
-`wetty.hardened.local`. No application source or proxy/network configuration is
-changed. The `public20` network and mTLS router settings are preserved.
+This directory repackages the existing `wetty.local` application image into `wetty.hardened.local`. No application
+source or proxy/network configuration is changed. The `public20` network and mTLS router settings are preserved.
 
-The runtime uses UID/GID 1000, a read-only filesystem, a 64 MiB
-noexec/nosuid/nodev /tmp tmpfs, no Linux capabilities, no-new-privileges, an
-init process, and limits of 512 MiB RAM (no additional swap), 128
-processes/threads and one CPU. Container logs rotate at 10 MiB with three files.
-Only runtime packages, built application files and production dependencies are
-copied into the image.
+The runtime uses UID/GID 1000, a read-only filesystem, a 64 MiB noexec/nosuid/nodev /tmp tmpfs, no Linux capabilities,
+no-new-privileges, an init process, and limits of 512 MiB RAM (no additional swap), 128 processes/threads and one CPU.
+Container logs rotate at 10 MiB with three files. Only runtime packages, built application files and production
+dependencies are copied into the image.
 
 After updating/rebuilding the application image `wetty.local`:
 
@@ -20,19 +17,16 @@ docker compose run --rm --no-deps -T --entrypoint node wetty --input-type=module
 docker compose up -d --no-deps wetty
 ```
 
-Do not run the old repository deployment instructions directly: this deployment
-now needs the extra runtime-image build. Avoid publishing port 3000.
+Do not run the old repository deployment instructions directly: this deployment now needs the extra runtime-image build.
+Avoid publishing port 3000.
 
-Password and keyboard-interactive fallback remain enabled. SSH agent and browser
-known-host sockets live in /tmp and disappear with the container. The SSH target
-and tmux command are unchanged. Browser keys and trust records remain in
+Password and keyboard-interactive fallback remain enabled. SSH agent and browser known-host sockets live in /tmp and
+disappear with the container. The SSH target and tmux command are unchanged. Browser keys and trust records remain in
 IndexedDB.
 
-The shared network still allows reachable peers to bypass the proxy mTLS gate;
-this change does not provide network isolation or application-level session
-limits. SSH authentication still applies. Host administrators and Docker
-administrators remain trusted. The resource limits bound total resource use, not
-individual sessions.
+The shared network still allows reachable peers to bypass the proxy mTLS gate; this change does not provide network
+isolation or application-level session limits. SSH authentication still applies. Host administrators and Docker
+administrators remain trusted. The resource limits bound total resource use, not individual sessions.
 
 Rollback (disconnects active browser sessions):
 
@@ -46,38 +40,31 @@ The original application image `wetty.local` is retained for rollback.
 
 ## Browser agent forwarding
 
-The deployment enables `--browser-agent-forwarding`. The forwarded socket is
-separate from the login socket. Onward signing requires browser approval;
-verified host-bound destinations can be approved until disconnected. Forwarding
-requires a freshly loaded client with approval support. Use `ssh-add -L` to list
-the browser key. For onward SSH use:
+The deployment enables `--browser-agent-forwarding`. The forwarded socket is separate from the login socket. Onward
+signing requires browser approval; verified host-bound destinations can be approved until disconnected. Forwarding
+requires a freshly loaded client with approval support. Use `ssh-add -L` to list the browser key. For onward SSH use:
 
 ```sh
 ssh -o PubkeyAuthentication=yes -o PubkeyAcceptedAlgorithms=rsa-sha2-256 user@destination
 ```
 
-The Compose login command refreshes a stable agent symlink before attaching to
-tmux. Existing panes must set SSH_AUTH_SOCK to ~/.ssh/agent.sock once. RSA and
-Ed25519 keys can be imported with ssh-add after browser approval. Imports
-require WebSocket transport and persist as non-extractable CryptoKeys in
-IndexedDB. The browser verifies session bindings and displays host-key
-fingerprints; hostname verification remains the onward SSH client's
-responsibility. Approve only operations you started.
+The Compose login command refreshes a stable agent symlink before attaching to tmux. Existing panes must set
+SSH_AUTH_SOCK to ~/.ssh/agent.sock once. RSA and Ed25519 keys can be imported with ssh-add after browser approval.
+Imports require WebSocket transport and persist as non-extractable CryptoKeys in IndexedDB. The browser verifies session
+bindings and displays host-key fingerprints; hostname verification remains the onward SSH client's responsibility.
+Approve only operations you started.
 
-To roll back only forwarding, restore `compose.yaml.before-forwarding`, set its
-image to `wetty.hardened.before-forwarding`, then run
-`docker compose up -d --no-deps --no-build wetty`. This retains runtime
+To roll back only forwarding, restore `compose.yaml.before-forwarding`, set its image to
+`wetty.hardened.before-forwarding`, then run `docker compose up -d --no-deps --no-build wetty`. This retains runtime
 hardening.
 
 ## Imported keys
 
-Reload WeTTY after upgrading, then run `ssh-add ~/.ssh/id_ed25519` or
-`ssh-add ~/.ssh/id_rsa` in the remote terminal and approve the fingerprint in
-the browser. Imported RSA keys support SHA-256 and SHA-512; Ed25519 uses its
-native algorithm. The eight-key imported store is separate from the generated
-login key. Verified host-bound destinations can reuse a session approval.
-Constraints and removal are not implemented; see the repository's
+Reload WeTTY after upgrading, then run `ssh-add ~/.ssh/id_ed25519` or `ssh-add ~/.ssh/id_rsa` in the remote terminal and
+approve the fingerprint in the browser. Imported RSA keys support SHA-256 and SHA-512; Ed25519 uses its native
+algorithm. The eight-key imported store is separate from the generated login key. Verified host-bound destinations can
+reuse a session approval. Constraints and removal are not implemented; see the repository's
 docs/browser-agent-forwarding.md for limitations.
 
-The Compose login command continues to update ~/.ssh/agent.sock before tmux
-attachment. Keep SSH_AUTH_SOCK set to that stable path in existing panes.
+The Compose login command continues to update ~/.ssh/agent.sock before tmux attachment. Keep SSH_AUTH_SOCK set to that
+stable path in existing panes.

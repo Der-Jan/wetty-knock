@@ -1,19 +1,11 @@
-version: '3.5'
 services:
   wetty:
-    image: wettyoss/wetty
-    build:
-      context: .
-      dockerfile: containers/wetty/Dockerfile
-    entrypoint: pnpm run docker-compose-entrypoint
-    tty: true
-    working_dir: /usr/src/app
+    image: ghcr.io/der-jan/wetty-knock:latest
     ports:
       - '3000:3000'
     environment:
       SSHHOST: 'wetty-ssh'
       SSHPORT: 22
-      NODE_ENV: 'development'
       ALLOWEDORIGINS: 'http://localhost:3000,http://wetty.com'
 
   web:
@@ -37,7 +29,6 @@ services:
     build:
       context: .
       dockerfile: containers/ssh/Dockerfile
-    image: wettyoss/wetty:ssh
 
 networks:
   default:
