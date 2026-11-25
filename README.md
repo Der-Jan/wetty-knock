@@ -5,8 +5,10 @@
 [![Documentation](https://img.shields.io/badge/documentation-yes-brightgreen.svg)](https://github.com/butlerx/wetty/tree/main/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/butlerx/wetty/blob/main/LICENSE)
 
-WeTTY Knock is a fork of the [original WeTTY project](https://github.com/butlerx/wetty) that adds
-browser-managed SSH keys and per-use approval for sensitive keys.
+WeTTY Knock adds browser-managed SSH keys and per-use approval for sensitive keys.
+
+**Upstream project:** [WeTTY](https://github.com/butlerx/wetty), originally created by
+[Krishna Srinivas](https://github.com/krishnasrinivas) and maintained by [Cian Butler](https://github.com/butlerx).
 
 ![WeTTY Knock prompting to use a sensitive SSH key for a forwarded login, with Deny and Allow once buttons](docs/ssh-key-approval.png)
 
