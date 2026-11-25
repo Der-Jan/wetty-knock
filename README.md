@@ -27,96 +27,12 @@ websockets rather than Ajax and hence better response time.
 - python
 - build-essential
 
-## Install
-
-```sh
-npm -g i wetty
-```
-
 ## Usage
 
-```sh
-$ wetty --help
-Options:
-  --help, -h              Print help message                            [boolean]
-  --version               Show version number                           [boolean]
-  --conf                  config file to load config from                [string]
-  --ssl-key               path to SSL key                                [string]
-  --ssl-cert              path to SSL certificate                        [string]
-  --ssh-host              ssh server host                                [string]
-  --ssh-port              ssh server port                                [number]
-  --ssh-user              ssh user                                       [string]
-  --title                 window title                                   [string]
-  --ssh-auth              defaults to "password", you can use
-                          "publickey,password" instead                   [string]
-  --ssh-pass              ssh password                                   [string]
-  --ssh-key               path to an optional client private key
-                          (connection will be password-less and
-                          insecure!)                                     [string]
-  --ssh-config            Specifies an alternative ssh configuration
-                          file. For further details see "-F" option in
-                          ssh(1)                                         [string]
-  --force-ssh             Connecting through ssh even if running as
-                          root                                          [boolean]
-  --known-hosts           path to known hosts file                       [string]
-  --base, -b              base path to wetty                             [string]
-  --port, -p              wetty listen port                              [number]
-  --host                  wetty listen host                              [string]
-  --socket                Make wetty listen on unix socket               [string]
-  --command, -c           command to run in shell                        [string]
-  --allow-iframe          Allow wetty to be embedded in an iframe,
-                          defaults to allowing same origin              [boolean]
-  --allow-remote-hosts    Allow wetty to use the host and port params
-                          in a url as ssh destination                   [boolean]
-  --allow-remote-command  Allow wetty to use the command and path
-                          params in a url as command and working
-                          directory on ssh host                         [boolean]
-  --ping-interval         Milliseconds between Socket.IO heartbeat
-                          pings sent to the client                       [number]
-  --ping-timeout          Milliseconds to wait for a Socket.IO
-                          heartbeat pong before considering the
-                          connection dead                                [number]
-  --allowed-origin        Required trusted browser origin allowed to
-                          connect to Socket.IO. Repeat for multiple
-                          origins; also accepts ALLOWEDORIGINS            [array]
-  --log-level             set log level of wetty server                  [string]
-```
+Open WeTTY Knock in your browser and click the key icon to manage your SSH keys. See the
+[browser key login guide](docs/browser-key-login.md) for enrollment and per-use approval.
 
-Start WeTTY with an explicit trusted browser origin (required):
-
-```sh
-wetty --allowed-origin http://yourserver:3000
-```
-
-Open your browser on `http://yourserver:3000` and you will be prompted to login. Or go to
-`http://yourserver:3000/ssh/<username>` to specify the user beforehand. For local use, configure `http://localhost:3000`
-instead. Behind a reverse proxy, configure the public HTTPS origin, not the internal backend address. Origins never
-include the base path. Repeat `--allowed-origin` or set a comma-separated `ALLOWEDORIGINS` list to allow multiple
-origins.
-
-If you run it as root it will launch `/bin/login` (where you can specify the user name), else it will launch `ssh` and
-connect by default to `localhost`. The SSH connection can be forced using the `--force-ssh` option.
-
-If instead you wish to connect to a remote host you can specify the `--ssh-host` option, the SSH port using the
-`--ssh-port` option and the SSH user using the `--ssh-user` option.
-
-Check out the [Flags docs](https://butlerx.github.io/wetty/flags) for a full list of flags
-
-### Docker container
-
-To use WeTTY as a docker container, a docker image is available on
-[docker hub](https://hub.docker.com/r/wettyoss/wetty). To run this image, use
-
-```sh
-docker run --rm -p 3000:3000 -e ALLOWEDORIGINS=http://localhost:3000 wettyoss/wetty --ssh-host=<YOUR-IP>
-```
-
-and you will be able to open a ssh session to the host given by `YOUR-IP` under the URL
-[http://localhost:3000](http://localhost:3000).
-
-It is recommended to drive WeTTY behind a reverse proxy to have HTTPS security and possibly Let’s Encrypt support.
-Popular containers to achieve this are [nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) and
-[traefik](https://traefik.io/traefik/). For traefik there is an example docker-compose file in the containers directory.
+For the Docker setup used by this fork, see the [deployment notes](containers/local-deployment/README.md).
 
 ## FAQ
 
