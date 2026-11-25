@@ -25,5 +25,5 @@ jobs:
       - name: Tag the tested image
         env:
           IMAGE: ghcr.io/der-jan/wetty-knock
-        run: |
+        run: |-
           docker buildx imagetools create --tag "$IMAGE:${GITHUB_REF_NAME#v}" "$IMAGE:sha-$GITHUB_SHA"
