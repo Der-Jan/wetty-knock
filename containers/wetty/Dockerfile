@@ -1,5 +1,6 @@
 # ---------- Base image ----------
-FROM node:22.23.4-alpine AS base
+FROM node:22.23.4-alpine AS node-runtime
+FROM node-runtime AS base
 RUN apk add -U build-base python3 py3-setuptools make g++ git
 WORKDIR /usr/src/app
 
@@ -20,15 +21,16 @@ RUN --mount=type=cache,id=pnpm,target=/root/.pnpm-store pnpm install --frozen-lo
 RUN pnpm run build
 
 # ---------- Final runtime image ----------
-FROM base
+FROM node-runtime
 LABEL maintainer="butlerx@notthe.cloud"
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
+COPY --from=prod-deps /usr/src/app/package.json ./package.json
 COPY --from=prod-deps /usr/src/app/node_modules /usr/src/app/node_modules
 COPY --from=build /usr/src/app/build /usr/src/app/build
 
-RUN apk add -U coreutils openssh-client sshpass && \
+RUN apk add --no-cache coreutils openssh-client sshpass libstdc++ && \
     mkdir -p ~/.ssh
 
 EXPOSE 3000
